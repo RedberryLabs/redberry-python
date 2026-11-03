@@ -1,0 +1,86 @@
+{
+  "name": "v1-minimal",
+  "description": "A root request span and one gen_ai chat span, given child first; finish complete.",
+  "input": {
+    "agentId": "AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH",
+    "traceId": "45e3cc173b7aae7a6e658021710f8848",
+    "finish": "complete",
+    "resource": {
+      "service.name": "refund-agent",
+      "vercel.runtime": "nodejs"
+    },
+    "producer": {
+      "name": "@redberrylabs/otel",
+      "version": "0.1.0"
+    },
+    "spans": [
+      {
+        "traceId": "45e3cc173b7aae7a6e658021710f8848",
+        "parentSpanId": "aaaaaaaaaaaaaaaa",
+        "name": "chat openai/gpt-4o-mini",
+        "kind": 2,
+        "endTimeUnixNano": "1792595659250123456",
+        "attributes": {
+          "gen_ai.usage.output_tokens": 12,
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.temperature": 1,
+          "gen_ai.request.model": "openai/gpt-4o-mini"
+        },
+        "status": {
+          "code": 0,
+          "message": null
+        },
+        "events": [],
+        "links": [],
+        "scope": {
+          "name": "gen_ai",
+          "version": null,
+          "schemaUrl": null
+        },
+        "dropped": {
+          "attributes": 0,
+          "events": 0,
+          "links": 0
+        },
+        "spanId": "bbbbbbbbbbbbbbbb",
+        "startTimeUnixNano": "1792595658010000000"
+      },
+      {
+        "traceId": "45e3cc173b7aae7a6e658021710f8848",
+        "parentSpanId": null,
+        "name": "POST /api/refund",
+        "kind": 1,
+        "endTimeUnixNano": "1792595659744832569",
+        "attributes": {
+          "http.route": "/api/refund",
+          "http.status_code": 200,
+          "next.rsc": false
+        },
+        "status": {
+          "code": 0,
+          "message": null
+        },
+        "events": [],
+        "links": [],
+        "scope": {
+          "name": "next.js",
+          "version": "16.4.2",
+          "schemaUrl": null
+        },
+        "dropped": {
+          "attributes": 0,
+          "events": 0,
+          "links": 0
+        },
+        "spanId": "aaaaaaaaaaaaaaaa",
+        "startTimeUnixNano": "1792595658004000000"
+      }
+    ]
+  },
+  "expected": {
+    "canonical": "{\"agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\",\"cut_reason\":null,\"dropped_spans\":0,\"ended_at\":\"2026-10-21T15:14:19.744Z\",\"finish\":\"complete\",\"producer\":{\"name\":\"@redberrylabs/otel\",\"version\":\"0.1.0\"},\"resource\":{\"service.name\":\"refund-agent\",\"vercel.runtime\":\"nodejs\"},\"schema\":\"redberry.trace.v1\",\"spans\":[{\"attributes\":{\"http.route\":\"/api/refund\",\"http.status_code\":200,\"next.rsc\":false,\"redberry.agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\"},\"dropped\":{\"attributes\":0,\"events\":0,\"links\":0},\"endTimeUnixNano\":\"1792595659744832569\",\"events\":[],\"kind\":1,\"links\":[],\"name\":\"POST /api/refund\",\"parentSpanId\":null,\"scope\":{\"name\":\"next.js\",\"schemaUrl\":null,\"version\":\"16.4.2\"},\"spanId\":\"aaaaaaaaaaaaaaaa\",\"startTimeUnixNano\":\"1792595658004000000\",\"status\":{\"code\":0,\"message\":null},\"traceId\":\"45e3cc173b7aae7a6e658021710f8848\"},{\"attributes\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"openai/gpt-4o-mini\",\"gen_ai.request.temperature\":1,\"gen_ai.usage.output_tokens\":12,\"redberry.agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\"},\"dropped\":{\"attributes\":0,\"events\":0,\"links\":0},\"endTimeUnixNano\":\"1792595659250123456\",\"events\":[],\"kind\":2,\"links\":[],\"name\":\"chat openai/gpt-4o-mini\",\"parentSpanId\":\"aaaaaaaaaaaaaaaa\",\"scope\":{\"name\":\"gen_ai\",\"schemaUrl\":null,\"version\":null},\"spanId\":\"bbbbbbbbbbbbbbbb\",\"startTimeUnixNano\":\"1792595658010000000\",\"status\":{\"code\":0,\"message\":null},\"traceId\":\"45e3cc173b7aae7a6e658021710f8848\"}],\"started_at\":\"2026-10-21T15:14:18.004Z\",\"trace_id\":\"45e3cc173b7aae7a6e658021710f8848\"}",
+    "gzip_base64": "H4sIAAAAAAAAA81UyW7bMBD9lYBnixZlbdape7qg6RKnS4LCoKlxzFqiVJIyUhj99w4pOW0cp+mlQHkSxZk3M+89ckv4JSg7lyUpyMPjWRCyV8mH/N3Lyevs08fo/FH8+f3J4ydPnx0/JyMiOjvXwE2jSKG6qhqRUjdtC+XctFwZUoQjAqrEPbeIF4VRGrAwiNiMJQWLCzalWRyfI9JSKmlWGCOauq3AAv5rdVN2AjQptkTxGvD0gYZyAVp/r/jCjBsLFcZtQBvpWiAhZTQkP0ZEg2k6LTBlSwzojRRABwgNy06VgR+zTxZQUd0pK/25akr4ahyIESuouU/pi1KrOQJtGOYNA14gYdZquegs4HZLVta2VDe4xcQxb+W4L4gp/shYbjszF1iFFFGIBCm4slQbQYolrwy45odyfy8Fdjsw73r4vSOnwAZh+s9KqrX7wnjUZYYTnyl5dcJVgzVYNo2SaZImUxQln0RJOsWud9kXX0ZkLXGQgl3juH8DrW/fnM6Obs7bco2pp0jUC8zq/WFE03pVhjQ/PNK9Y/tMV7vQX7KylMY08pIMYITvLQdgubZ3jZSHYRz61UeiBq6LXgYkpgZjkO6+NhbySvtKcQITIVg2WWScQ8ZTcGgRy1i4zPM4x7b2PYCyzbmkOKnmFkfYWU+s8BqMdscavnVgLK2xBxyaYLjicnzZ2iBughovxO1YC7UH7TTioQ7Dced6p2i6Fi+kbdbgrMmi/8FKURKyaBIn6UErYYu3reRoOjrIxk1HHTTBnr96gv5or0Hxa2st9tb91mK9s/6BtZAUX/vuFzSn6Gz3gnrYXuH7cX8C2hALyucFAAA=",
+    "sha256": "e3ea0f69ba4451ead08aaded8c156913f2640b93772b72573ea9871a6b0026d5",
+    "size": 632
+  }
+}

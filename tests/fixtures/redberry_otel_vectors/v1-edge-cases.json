@@ -1,0 +1,146 @@
+{
+  "name": "v1-edge-cases",
+  "description": "Key order by UTF-16 code units (astral before U+E000), escapes, numbers in ECMAScript form, arrays, equal start times ordered by span id, and a span still open at a deadline cut (cut_short).",
+  "input": {
+    "agentId": "AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH",
+    "traceId": "45e3cc173b7aae7a6e658021710f8848",
+    "finish": "cut_short",
+    "cutReason": "deadline",
+    "cutAtMs": 1792595718000,
+    "resource": {
+      "z": 1,
+      "a": "x"
+    },
+    "producer": {
+      "name": "@redberrylabs/otel",
+      "version": "0.1.0"
+    },
+    "spans": [
+      {
+        "traceId": "45e3cc173b7aae7a6e658021710f8848",
+        "parentSpanId": null,
+        "name": "same start, larger id",
+        "kind": 0,
+        "endTimeUnixNano": null,
+        "attributes": {},
+        "status": {
+          "code": 0,
+          "message": null
+        },
+        "events": [],
+        "links": [],
+        "scope": {
+          "name": "gen_ai",
+          "version": null,
+          "schemaUrl": null
+        },
+        "dropped": {
+          "attributes": 0,
+          "events": 0,
+          "links": 0
+        },
+        "spanId": "00000000000000ff",
+        "startTimeUnixNano": "1792595658000000000"
+      },
+      {
+        "traceId": "45e3cc173b7aae7a6e658021710f8848",
+        "parentSpanId": null,
+        "name": "same start, smaller id",
+        "kind": 0,
+        "endTimeUnixNano": "1792595658001000000",
+        "attributes": {
+          "1": "digit",
+          "": "private use",
+          "😀": "astral key",
+          "€": "euro",
+          "a": "plain",
+          "A": "upper",
+          "\r": "cr",
+          "gen_ai.operation.name": "execute_tool",
+          "strings": [
+            "quote \" backslash \\ slash /",
+            "tab\tnewline\nnul\u0000 del",
+            "café café 😀   "
+          ],
+          "numbers": [
+            0,
+            1,
+            -1,
+            0.1,
+            1e+21,
+            1e-7,
+            123.456,
+            9007199254740991,
+            -9007199254740991,
+            1.5e+300,
+            5e-324
+          ],
+          "bools": [
+            true,
+            false
+          ],
+          "gen_ai.tool.call.arguments": "{\"b\":1,\"a\":2}"
+        },
+        "status": {
+          "code": 2,
+          "message": "Amount exceeds agent limit"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "timeUnixNano": "1792595658000500000",
+            "attributes": {
+              "exception.message": "boom"
+            },
+            "droppedAttributesCount": 0
+          }
+        ],
+        "links": [],
+        "scope": {
+          "name": "gen_ai",
+          "version": null,
+          "schemaUrl": null
+        },
+        "dropped": {
+          "attributes": 0,
+          "events": 0,
+          "links": 0
+        },
+        "spanId": "000000000000000a",
+        "startTimeUnixNano": "1792595658000000000"
+      },
+      {
+        "traceId": "45e3cc173b7aae7a6e658021710f8848",
+        "parentSpanId": null,
+        "name": "earliest",
+        "kind": 1,
+        "endTimeUnixNano": "1792595658000999999",
+        "attributes": {},
+        "status": {
+          "code": 0,
+          "message": null
+        },
+        "events": [],
+        "links": [],
+        "scope": {
+          "name": "gen_ai",
+          "version": null,
+          "schemaUrl": null
+        },
+        "dropped": {
+          "attributes": 0,
+          "events": 0,
+          "links": 0
+        },
+        "spanId": "0000000000000001",
+        "startTimeUnixNano": "1792595657999999999"
+      }
+    ]
+  },
+  "expected": {
+    "canonical": "{\"agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\",\"cut_reason\":\"deadline\",\"dropped_spans\":0,\"ended_at\":\"2026-10-21T15:15:18.000Z\",\"finish\":\"cut_short\",\"producer\":{\"name\":\"@redberrylabs/otel\",\"version\":\"0.1.0\"},\"resource\":{\"a\":\"x\",\"z\":1},\"schema\":\"redberry.trace.v1\",\"spans\":[{\"attributes\":{\"redberry.agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\"},\"dropped\":{\"attributes\":0,\"events\":0,\"links\":0},\"endTimeUnixNano\":\"1792595658000999999\",\"events\":[],\"kind\":1,\"links\":[],\"name\":\"earliest\",\"parentSpanId\":null,\"scope\":{\"name\":\"gen_ai\",\"schemaUrl\":null,\"version\":null},\"spanId\":\"0000000000000001\",\"startTimeUnixNano\":\"1792595657999999999\",\"status\":{\"code\":0,\"message\":null},\"traceId\":\"45e3cc173b7aae7a6e658021710f8848\"},{\"attributes\":{\"\\r\":\"cr\",\"1\":\"digit\",\"A\":\"upper\",\"a\":\"plain\",\"bools\":[true,false],\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.call.arguments\":\"{\\\"b\\\":1,\\\"a\\\":2}\",\"numbers\":[0,1,-1,0.1,1e+21,1e-7,123.456,9007199254740991,-9007199254740991,1.5e+300,5e-324],\"redberry.agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\",\"strings\":[\"quote \\\" backslash \\\\ slash /\",\"tab\\tnewline\\nnul\\u0000 del\",\"café café 😀   \"],\"€\":\"euro\",\"😀\":\"astral key\",\"\":\"private use\"},\"dropped\":{\"attributes\":0,\"events\":0,\"links\":0},\"endTimeUnixNano\":\"1792595658001000000\",\"events\":[{\"attributes\":{\"exception.message\":\"boom\"},\"droppedAttributesCount\":0,\"name\":\"exception\",\"timeUnixNano\":\"1792595658000500000\"}],\"kind\":0,\"links\":[],\"name\":\"same start, smaller id\",\"parentSpanId\":null,\"scope\":{\"name\":\"gen_ai\",\"schemaUrl\":null,\"version\":null},\"spanId\":\"000000000000000a\",\"startTimeUnixNano\":\"1792595658000000000\",\"status\":{\"code\":2,\"message\":\"Amount exceeds agent limit\"},\"traceId\":\"45e3cc173b7aae7a6e658021710f8848\"},{\"attributes\":{\"redberry.agent_id\":\"AGT-01K5V8QJ3M7XW2ZB4YRNCDEFGH\"},\"dropped\":{\"attributes\":0,\"events\":0,\"links\":0},\"endTimeUnixNano\":null,\"events\":[],\"kind\":0,\"links\":[],\"name\":\"same start, larger id\",\"parentSpanId\":null,\"scope\":{\"name\":\"gen_ai\",\"schemaUrl\":null,\"version\":null},\"spanId\":\"00000000000000ff\",\"startTimeUnixNano\":\"1792595658000000000\",\"status\":{\"code\":0,\"message\":null},\"traceId\":\"45e3cc173b7aae7a6e658021710f8848\"}],\"started_at\":\"2026-10-21T15:14:17.999Z\",\"trace_id\":\"45e3cc173b7aae7a6e658021710f8848\"}",
+    "gzip_base64": "H4sIAAAAAAAAA8WWXW7bRhDHr0LsayiGS4mmpKe6aZt+oAHaOv1IWAgrcmQvvFyqu0vXqWHU7Sn61tcG6C362lP4AEWPkP+QsiI4SBzEQUII5O5yZmfmNzMrngl1SDYsdC3mYv/+wSiVX+TfTr/6fPxl8f132aMPJz98/eDeRx9/cv9TEYuqCwtHyrcW0jWp2mhLWK9du15TvfBrZb2Yp7EgW2OuAuSyNNsbyXSUyQOZz/k3TdI0fQS9lbbaH0GGN/ZHrQtYXLu27ipyYn4mrGoIrz9wVC/JuSdGLf3dNpCB3Ak5r3tP0kQmqTiPhSPfdq6CCuLCi1OI/SLmEq98dUQNr11tlQSnKkpOJGQ2fj+GVghOL7tAmJ49l319SDC1odE7sbMdUznBNsMQ5I55BHmwOtANPbT69IGyLWzIYpbls3wvnwLUrL/g5ZX24x9jcawtDMjtPry2gUXKGU2+R6kcVL5BdJ9B2nbGMIh23QPaiCOyhdIMoSf00JkryS1gnjLCzT4CTu1ePcGgXHhZFMUQwhAFJEPX063aGg6ARUPeg/DWUJ+Z3tIkp3FVyWK8LJSiQu0RM8lkIdPVdDqZAvf1nJUoHFE5WJJcpPpQM4l9jDtkhde5CtZGaYvxsm0N4wuuo3iljCeAHJAk4ORUAIHkiuwpoVBpEaAE3Y0Yz5JKGZMod9g1Q47EWSmWJWeoFArP7BwKtmtQTmwujWU8kjEKN5Z0J+P7qIhlNk4m+V48S9NCzgBvUkyQfoi+sCKTnO6M0zTOaTTOJnD6DWqVk+G0PWSPxE8d+ioqRbRU1bE3yh9FZRkNg7sQDWpZBks/c8uXFpkqO05+VJP5lY8GtfrnaYQ7/ftb9P+ff1xElxd/XV48FXDt8ve/mV7nWgjyO8wUTCsTHdMTrP13wUtrp08UfOg8vf02kkOt7rbR9cqh04rWfb63Bcn10ew4s79VuNd2FqcbXNgWx0abWb2infPBj/NtEz+PYqeJPR5R31Rx5BsUF7kIKX1XLa1uammOZEv0ektnOy0t9hsmFTEeqn3UV2dkdIO2vG2rv6fjeUD54ml8YyINDoh3msfV6lZ5vOXRDAi97Zd8CEzmskjwn8AfAv22QwJv3vcZTN/dcLQIAAA=",
+    "sha256": "c3408da887f6f34e68d22b48574e59c14e251f3c44e38e90622b5017881e8148",
+    "size": 851
+  }
+}
