@@ -1,6 +1,6 @@
 """The agent's emit path: where spans go, how they authenticate, and what is dropped.
 
-RAP docs/client_install_architecture.md, principles 1, 6 and 7 and section 2.2. The agent only emits:
+The agent only emits:
 nothing here hashes, signs, holds a key or writes to storage. Nothing here raises into the agent: a
 discovery or token failure is logged once and left to the OTLP exporter's own retry and backoff.
 
@@ -18,6 +18,14 @@ Endpoint, in order:
    named: the managed identity's token for Redberry's app asks ``/api/discover/azure`` for the ingest
    URL (``redberry_sdk._emit_azure``); each export carries that token as a Bearer.
 3. ``http://localhost:4318``, the Docker bundle's collector.
+
+When discovery fails on a cloud (step 2), the SDK says so once at ERROR with a code (``RB-SDK-DISC-001`` no
+region on GCE/GKE, ``-002`` AWS, ``-003`` Azure; ``-004``, a WARNING: named, but on no known cloud and no
+endpoint set). It does not post to localhost meanwhile: batches are dropped (and counted), and discovery is
+tried again every ``REDBERRY_DISCOVERY_RETRY_S`` seconds (default 300). Once it succeeds the exporter switches
+to the ingest service, with no restart, and for an hour the agent's spans carry
+``redberry.sdk.discovery_failure`` ("<code>;<minutes>"), so the installation can show how long it could
+not send.
 
 On GCP every export carries ``Authorization: Bearer <ID token>``, the token minted by the metadata
 server for the ingest base URL and cached until five minutes before it expires.
@@ -43,7 +51,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import requests
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     SpanExporter,
@@ -70,6 +78,12 @@ AUTH_RETRY_DEFAULT_S = 300.0
 AUTH_RETRY_FIRST_S = 2.0
 AUTH_RETRY_MAX_S = 32.0
 AUTH_RETRY_STATUSES = (401, 403)
+
+DISCOVERY_RETRY_ENV = "REDBERRY_DISCOVERY_RETRY_S"
+DISCOVERY_RETRY_DEFAULT_S = 300.0
+#: Set on spans started in the hour after discovery recovers: "<code>;<minutes it failed for>".
+DISCOVERY_FAILURE_ATTRIBUTE = "redberry.sdk.discovery_failure"
+DISCOVERY_FAILURE_SHOWN_S = 3600.0
 
 AGENT_NAME_ATTRIBUTE = "redberry.agent.name"
 AGENT_NAME_MAX = 64
@@ -125,6 +139,8 @@ class Endpoint:
 
 
 _ENDPOINT_CACHE: Endpoint | None = None
+#: The code of the last discovery failure (RB-SDK-DISC-00n), None when discovery has not failed.
+_DISCOVERY_FAILURE: str | None = None
 _LOGGED_ONCE: set[str] = set()
 _ONCE_LOCK = threading.Lock()
 
@@ -147,10 +163,9 @@ def discover_gcp() -> Endpoint | None:
         reported = _metadata_get("instance/region") or ""
         region = reported.rsplit("/", 1)[-1] if reported else ""
     if not region:
-        _log_once("region", logging.WARNING,
-                  "redberry_sdk: on GCP but the metadata server reports no region (GCE/GKE); set %s to "
-                  "the region of the redberry-ingest service. Sending to %s meanwhile.", REGION_ENV,
-                  DEFAULT_ENDPOINT)
+        _failed("RB-SDK-DISC-001",
+                "on GCP but the metadata server reports no region (GCE/GKE); set %s to the region of the "
+                "redberry-ingest service", REGION_ENV)
         return None
     url = ingest_url(project_number, region)
     return Endpoint(url=url, source="gcp", audience=url)
@@ -164,10 +179,10 @@ def discover_aws() -> Endpoint | None:
     try:
         url, region, creds = _emit_aws.discover()
     except Exception as e:  # noqa: BLE001 - never fail init over discovery
-        _log_once("aws-discovery", logging.WARNING,
-                  "redberry_sdk: on AWS but the Redberry ingest endpoint could not be discovered (%s); "
-                  "set %s, or check the installation. Sending to %s meanwhile.", e, INGEST_URL_ENV,
-                  DEFAULT_ENDPOINT)
+        _failed("RB-SDK-DISC-002",
+                "on AWS but the Redberry install could not be found (%s): check that the install ran in this "
+                "account and region and that this function was chosen as an agent (re-run the install and "
+                "select it), or set %s", e, INGEST_URL_ENV)
         return None
     return Endpoint(url=url, source="aws", aws_region=region, aws_credentials=creds)
 
@@ -180,12 +195,41 @@ def discover_azure() -> Endpoint | None:
     try:
         url, tokens = _emit_azure.discover()
     except Exception as e:  # noqa: BLE001 - never fail init over discovery
-        _log_once("azure-discovery", logging.WARNING,
-                  "redberry_sdk: on Azure but the Redberry ingest endpoint could not be discovered (%s); "
-                  "set %s, or check the installation and the agent's managed identity. Sending to %s "
-                  "meanwhile.", e, INGEST_URL_ENV, DEFAULT_ENDPOINT)
+        _failed("RB-SDK-DISC-003",
+                "on Azure but the Redberry install could not be found (%s): check that the app has a managed "
+                "identity and was chosen as an agent (re-run the install and select it), or set %s", e,
+                INGEST_URL_ENV)
         return None
     return Endpoint(url=url, source="azure", azure_token=tokens)
+
+
+def _failed(code: str, message: str, *args: object) -> None:
+    """A discovery failure: recorded (for the retry and the recovery attribute) and logged once at ERROR."""
+    global _DISCOVERY_FAILURE
+    _DISCOVERY_FAILURE = code
+    _log_once(code, logging.ERROR, "redberry_sdk: %s: " + message + ". Spans are not delivered until this is "
+              "fixed; discovery is tried again every %d s.", code, *args, int(discovery_retry_s()))
+
+
+def discovery_retry_s() -> float:
+    """Seconds between discovery attempts after a failure: ``REDBERRY_DISCOVERY_RETRY_S``, default 300."""
+    raw = (_env.get(DISCOVERY_RETRY_ENV) or "").strip()
+    try:
+        return max(5.0, float(raw)) if raw else DISCOVERY_RETRY_DEFAULT_S
+    except ValueError:
+        return DISCOVERY_RETRY_DEFAULT_S
+
+
+def discover_install() -> Endpoint | None:
+    """One discovery attempt on each cloud, in turn; None when none found the install."""
+    global _DISCOVERY_FAILURE
+    _DISCOVERY_FAILURE = None
+    return discover_aws() or discover_azure() or discover_gcp()
+
+
+def discovery_failure() -> str | None:
+    """The code of the current discovery failure (RB-SDK-DISC-00n), or None."""
+    return _DISCOVERY_FAILURE
 
 
 def cloud_run_resource_attributes() -> dict[str, str]:
@@ -241,7 +285,14 @@ def resolve_endpoint(configured: str, *, discover: bool) -> Endpoint:
     if not discover:
         return Endpoint(url=DEFAULT_ENDPOINT, source="default")
     if _ENDPOINT_CACHE is None:
-        _ENDPOINT_CACHE = discover_aws() or discover_azure() or discover_gcp() or Endpoint(url=DEFAULT_ENDPOINT, source="default")
+        found = discover_install()
+        if found is None and _DISCOVERY_FAILURE is None:
+            _log_once("RB-SDK-DISC-004", logging.WARNING,
+                      "redberry_sdk: RB-SDK-DISC-004: init(agent=...) but not on Google Cloud, AWS or Azure, and "
+                      "%s is not set: spans go to %s. Set %s to the install's ingest URL.", INGEST_URL_ENV,
+                      DEFAULT_ENDPOINT, INGEST_URL_ENV)
+        _ENDPOINT_CACHE = found or Endpoint(
+            url=DEFAULT_ENDPOINT, source="undiscovered" if _DISCOVERY_FAILURE else "default")
     return _ENDPOINT_CACHE
 
 
@@ -490,7 +541,7 @@ class CountingBatchSpanProcessor(BatchSpanProcessor):
     blocks: a full queue drops (the oldest span, as BatchSpanProcessor does) and counts one."""
 
     def __init__(self, exporter: SpanExporter, max_queue_size: int = MAX_QUEUE_SIZE,
-                 auth_retry: AuthRetryExporter | None = None, **kwargs) -> None:
+                 auth_retry: AuthRetryExporter | RediscoveringExporter | None = None, **kwargs) -> None:
         super().__init__(exporter, max_queue_size=max_queue_size, **kwargs)
         self._max_queue = max_queue_size
         self._auth_retry = auth_retry
@@ -520,22 +571,115 @@ class CountingBatchSpanProcessor(BatchSpanProcessor):
             _count_dropped(1)
 
 
-def build_processor(endpoint: Endpoint, wrap=lambda exporter: exporter) -> CountingBatchSpanProcessor:
-    """The OTLP/HTTP exporter for ``endpoint`` (with the ID-token session on GCP), wrapped by
-    ``wrap`` (the valp.* sequencing), counted, behind a bounded batch processor."""
+def _ingest_exporter(endpoint: Endpoint) -> AuthRetryExporter:
+    """The OTLP/HTTP exporter for ``endpoint`` (with its session: ID token, SigV4 or managed identity),
+    retrying a 401/403 while access is granted."""
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
     session = build_session(endpoint) or requests.Session()
     # 30 s, not OTLP's 10: the first export may wait on a cold-starting ingest (a Lambda container, ~5 s).
     otlp = OTLPSpanExporter(endpoint=f"{endpoint.url}/v1/traces", session=session, timeout=30)
     auth = session.auth if hasattr(session.auth, "invalidate") else None
-    retry = AuthRetryExporter(otlp, session, auth)
-    return CountingBatchSpanProcessor(CountingExporter(wrap(retry)), auth_retry=retry)
+    return AuthRetryExporter(otlp, session, auth)
+
+
+# The last recovery from a discovery failure: (code, minutes it lasted, when it recovered, monotonic).
+_RECOVERED: tuple[str, int, float] | None = None
+
+
+def recent_recovery(now: float | None = None) -> tuple[str, int] | None:
+    """(code, minutes) of a discovery failure that ended within the last hour, else None."""
+    rec = _RECOVERED
+    now = time.monotonic() if now is None else now
+    if rec is None or now - rec[2] >= DISCOVERY_FAILURE_SHOWN_S:
+        return None
+    return rec[0], rec[1]
+
+
+class RediscoveringExporter(SpanExporter):
+    """Where spans go while discovery has failed: nowhere (each batch fails at once, and is counted), and
+    every ``retry_s`` discovery is tried again, on the export thread. Once it finds the install, this
+    switches to the ingest exporter for good, logs that it did, and records the outage for
+    ``recent_recovery`` (the ``redberry.sdk.discovery_failure`` attribute)."""
+
+    def __init__(self, retry_s: float | None = None, clock=time.monotonic) -> None:
+        self._clock = clock
+        self._retry_s = discovery_retry_s() if retry_s is None else retry_s
+        self._code = discovery_failure() or "RB-SDK-DISC"
+        self._failed_at = clock()
+        self._next = self._failed_at + self._retry_s
+        self._inner: AuthRetryExporter | None = None
+        self._lock = threading.Lock()
+        self._stopped = False
+
+    def _current(self) -> AuthRetryExporter | None:
+        global _ENDPOINT_CACHE, _RECOVERED
+        with self._lock:
+            if self._inner is not None or self._stopped:
+                return self._inner
+            now = self._clock()
+            if now < self._next:
+                return None
+            self._next = now + self._retry_s
+            found = discover_install()
+            if found is None:
+                return None
+            _ENDPOINT_CACHE = found
+            self._inner = _ingest_exporter(found)
+            minutes = max(1, round((now - self._failed_at) / 60))
+            _RECOVERED = (self._code, minutes, now)
+        _log.warning("redberry_sdk: %s resolved: the Redberry install was found after about %d min; sending spans "
+                     "to %s. Spans from before were not delivered (redberry_sdk.dropped_spans()).", self._code,
+                     minutes, found.url)
+        return self._inner
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        inner = self._current()
+        return SpanExportResult.FAILURE if inner is None else inner.export(spans)
+
+    def stop(self) -> None:
+        self._stopped = True
+        if self._inner is not None:
+            self._inner.stop()
+
+    def flush_deadline(self, until: float | None) -> None:
+        if self._inner is not None:
+            self._inner.flush_deadline(until)
+
+    def shutdown(self) -> None:
+        self.stop()
+        if self._inner is not None:
+            self._inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True if self._inner is None else self._inner.force_flush(timeout_millis)
+
+
+class DiscoveryFailureMarker(SpanProcessor):
+    """For an hour after discovery recovers, marks each new span ``redberry.sdk.discovery_failure`` =
+    "<code>;<minutes>", so the installation learns that, and for how long, the agent could not send."""
+
+    def on_start(self, span, parent_context=None) -> None:
+        try:
+            recovered = recent_recovery()
+            if recovered is not None:
+                span.set_attribute(DISCOVERY_FAILURE_ATTRIBUTE, f"{recovered[0]};{recovered[1]}")
+        except Exception:  # noqa: BLE001 - never fail a span over a marker
+            pass
+
+
+def build_processor(endpoint: Endpoint, wrap=lambda exporter: exporter) -> CountingBatchSpanProcessor:
+    """The OTLP/HTTP exporter for ``endpoint`` (with the ID-token session on GCP), wrapped by
+    ``wrap`` (the valp.* sequencing), counted, behind a bounded batch processor. When discovery failed
+    (``source="undiscovered"``), an exporter that keeps trying to find the install instead."""
+    inner = RediscoveringExporter() if endpoint.source == "undiscovered" else _ingest_exporter(endpoint)
+    return CountingBatchSpanProcessor(CountingExporter(wrap(inner)), auth_retry=inner)
 
 
 def _reset_for_tests() -> None:
-    global _ENDPOINT_CACHE, _DROPPED, _DROPPED_LOGGED, _DROPPED_LOGGED_AT
+    global _ENDPOINT_CACHE, _DROPPED, _DROPPED_LOGGED, _DROPPED_LOGGED_AT, _DISCOVERY_FAILURE, _RECOVERED
     _ENDPOINT_CACHE = None
+    _DISCOVERY_FAILURE = _RECOVERED = None
     _DROPPED = _DROPPED_LOGGED = 0
     _DROPPED_LOGGED_AT = 0.0
     _LOGGED_ONCE.clear()

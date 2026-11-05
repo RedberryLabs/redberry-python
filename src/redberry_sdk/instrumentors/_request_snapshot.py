@@ -205,8 +205,8 @@ _LLM_SPAN_MARKERS = ("gen_ai.operation.name", "gen_ai.system", "llm.request.type
 def _is_llm_span(span: Any) -> bool:
     """Whether the current span is the model call's own span.
 
-    With the native instrumentor absent or suppressed (RAP suppresses its user
-    simulator's calls), the current span is some enclosing application span, and
+    With the native instrumentor absent or suppressed (an application may suppress
+    some of its own calls), the current span is some enclosing application span, and
     a conversation recorded there would be attributed to the wrong call — or, for
     a suppressed call, recorded at all. A span whose attributes cannot be read is
     given the benefit of the doubt: the normaliser only reads this event from
@@ -370,7 +370,7 @@ def build_response_attributes(response: Any, api: str) -> dict[str, Any]:
 
 
 # ----------------------------------------------------------------------
-# The response, VERBATIM (RAP docs/valp_single_chain_plan.md, A3)
+# The response, VERBATIM
 # ----------------------------------------------------------------------
 #
 # The projection above is what the normaliser reads. The evidence keeps

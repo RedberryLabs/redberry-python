@@ -23,8 +23,7 @@ Covered: OpenAI chat completions ``stream=True`` and Anthropic
 verbatim only (``redberry.llm.response.raw`` with the request beside it, no
 projection), the Responses API (``Responses.create``, the OpenAI Agents SDK's
 model call) streamed or not, which the normaliser reads from that record, and
-Anthropic ``Messages.stream``, evidence only. (RAP docs/valp_single_chain_plan.md,
-A3.)
+Anthropic ``Messages.stream``, evidence only.
 """
 from __future__ import annotations
 

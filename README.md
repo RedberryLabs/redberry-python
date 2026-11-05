@@ -70,6 +70,7 @@ Elsewhere, set the ingest address explicitly.
 | `REDBERRY_AZURE_APP_ID_URI` | Redberry's application ID URI in Entra ID, if not the default |
 | `REDBERRY_GCP_REGION` | the install's region on Google Cloud, when it cannot be detected |
 | `REDBERRY_OTEL_ENDPOINT` | an OTLP/HTTP endpoint to send to instead (for testing) |
+| `REDBERRY_DISCOVERY_RETRY_S` | how often, in seconds, finding the install is tried again after it failed (default 300) |
 | `REDBERRY_AUTH_RETRY_S` | how long a refused batch is retried while access is being granted (default 300) |
 | `REDBERRY_AGENT_ID` | the agent's name, if not passed to `init()` |
 | `REDBERRY_ALLOW_MISSING_INSTRUMENTATION` | `1` to start even when a library's instrumentation is not installed |
@@ -80,6 +81,18 @@ Settings can also be placed in a `.env` file next to the agent. Settings from ea
 different prefix, are still accepted.
 
 Records the SDK could not deliver are counted by `redberry_sdk.dropped_spans()`.
+
+## When records cannot be delivered
+
+The SDK never stops your agent. When it cannot find your install, it logs an error naming the cause and keeps
+trying every 5 minutes; as soon as the cause is fixed, records are sent again, with no restart or redeploy.
+
+| Code | Cause | Fix |
+|---|---|---|
+| `RB-SDK-DISC-001` | On Google Cloud, the metadata server reports no region (Compute Engine, GKE) | Set `REDBERRY_GCP_REGION` to the region of your install |
+| `RB-SDK-DISC-002` | On AWS, the install's `ingest.json` could not be read | Check that the install ran in this account and region, and that this function was chosen as an agent (run the install again and select it) |
+| `RB-SDK-DISC-003` | On Azure, the install could not be found | Check that the app has a managed identity and was chosen as an agent (run the install again and select it) |
+| `RB-SDK-DISC-004` | The agent is named, but not on Google Cloud, AWS or Azure, and no endpoint is set | Set `REDBERRY_INGEST_URL` |
 
 ## License
 

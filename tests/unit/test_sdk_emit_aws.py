@@ -146,8 +146,9 @@ def test_discovery_failure_falls_back(monkeypatch, caplog):
     monkeypatch.setattr(_emit_aws, "urllib_transport", FakeAws(bucket_owner="0"))
     monkeypatch.setattr(_emit, "discover_gcp", lambda: None)
     ep = _emit.resolve_endpoint(_emit.DEFAULT_ENDPOINT, discover=True)
-    assert ep.source == "default"
-    assert "could not be discovered" in caplog.text
+    # Named, on AWS, not found: an ERROR with its code, and an exporter that keeps looking.
+    assert ep.source == "undiscovered"
+    assert "RB-SDK-DISC-002" in caplog.text and _emit.discovery_failure() == "RB-SDK-DISC-002"
 
 
 @pytest.mark.parametrize("env", [_emit.INGEST_URL_ENV, _emit.ENDPOINT_ENV])

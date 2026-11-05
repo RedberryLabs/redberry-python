@@ -131,8 +131,9 @@ def test_discovery_failure_falls_back(monkeypatch, caplog):
         monkeypatch.setenv(k, v)
     monkeypatch.setattr(_emit_azure, "urllib_transport", FakeAzure(discover_status=404))
     monkeypatch.setattr(_emit, "discover_gcp", lambda: None)
-    assert _emit.resolve_endpoint(_emit.DEFAULT_ENDPOINT, discover=True).source == "default"
-    assert "could not be discovered" in caplog.text
+    # Named, on Azure, not found: an ERROR with its code, and an exporter that keeps looking.
+    assert _emit.resolve_endpoint(_emit.DEFAULT_ENDPOINT, discover=True).source == "undiscovered"
+    assert "RB-SDK-DISC-003" in caplog.text and _emit.discovery_failure() == "RB-SDK-DISC-003"
 
 
 def test_ingest_url_override_skips_discovery(monkeypatch):
