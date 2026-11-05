@@ -25,7 +25,7 @@ SCHEMA = "redberry.trace.v1"
 #: Every stored span carries the agent the hasher resolved under this name (SPEC §2.1).
 AGENT_ATTRIBUTE = "redberry.agent_id"
 #: This writer, in every document's ``producer`` (SPEC §1). ``@redberrylabs/otel`` writes its own name.
-PRODUCER = {"name": "redberry-agent-sdk", "version": __version__}
+PRODUCER = {"name": "redberry-sdk", "version": __version__}
 
 Finish = Literal["complete", "cut_short"]
 CutReason = Literal["deadline", "hard_stop", "shutdown"]

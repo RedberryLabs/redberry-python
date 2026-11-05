@@ -19,7 +19,7 @@ leaf in its ledger.
     def refund(req: func.HttpRequest) -> func.HttpResponse:
         ...
 
-Install with ``pip install "redberry-agent-sdk[hasher]"`` (plus ``[providers]`` for the LLM
+Install with ``pip install "redberry-sdk[hasher]"`` (plus ``[providers]`` for the LLM
 instrumentation). Configuration is by environment variable: see ``redberry_sdk.hasher._config``.
 Nothing here needs Docker or the bundle.
 """

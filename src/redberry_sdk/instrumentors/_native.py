@@ -73,7 +73,7 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):
 
     def is_available(self) -> bool:
         # By distribution, not import name: a project's own `agents/` package is not the
-        # OpenAI Agents SDK (system_map §8.12).
+        # OpenAI Agents SDK.
         from ._expected import EXPECTED, library_present
         return any(library_present(e) for e in EXPECTED if e.library == self.library)
 

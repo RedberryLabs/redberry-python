@@ -37,7 +37,7 @@ class MissingInstrumentationError(RuntimeError):
 
 class ContentCaptureDisabledError(RuntimeError):
     """Content capture is off, and nothing said it should be: the evidence would hold no prompts or
-    completions, and pricing could not score the agent (RAP docs/valp_single_chain_plan.md, A3)."""
+    completions, and pricing could not score the agent."""
 
 
 _CAPTURE_ENV = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
@@ -211,7 +211,7 @@ def init(
             _id = agent_id or kwargs.pop("agent_id", None)
             if _id is None:
                 # Allow agent_id to come from REDBERRY_AGENT_ID env var (set
-                # by the RAP outer loop). apply_env_overrides() will fill it
+                # by a test harness). apply_env_overrides() will fill it
                 # in below; default to empty string here so dataclass init
                 # succeeds.
                 _id = _env.get("REDBERRY_AGENT_ID") or ""
@@ -269,6 +269,7 @@ def init(
     # redberry.call_role on the spans of calls the agent makes for itself
     # (redberry_sdk.internal_call), so the normaliser does not read them as replies.
     provider.add_span_processor(CallRoleSpanProcessor())
+    provider.add_span_processor(_emit.DiscoveryFailureMarker())
     for processor in span_processors or ():
         provider.add_span_processor(processor)
 

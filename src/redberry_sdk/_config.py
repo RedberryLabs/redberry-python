@@ -26,7 +26,7 @@ class SDKConfig:
     agent_id: str
     task_class: str | None = None
 
-    # RAP run identifier (per scenario invocation). Set by the RAP outer loop
+    # Run identifier (per scenario invocation). Set by a test harness
     # via REDBERRY_RUN_ID, or passed explicitly. Reported as the redberry.run_id
     # resource attribute; optional.
     run_id: str | None = None
@@ -65,7 +65,7 @@ class SDKConfig:
     # then warns and logs at ERROR instead.
     allow_missing_instrumentation: bool = False
 
-    # Content capture cannot be switched off silently (RAP docs/valp_single_chain_plan.md, A3): the
+    # Content capture cannot be switched off silently: the
     # evidence and pricing both need content. With it off (capture_content=False, or an inherited
     # OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT other than "true") init() refuses to start,
     # unless this is set (or REDBERRY_ALLOW_CONTENT_CAPTURE_OFF=1): a metadata-only run, chosen.

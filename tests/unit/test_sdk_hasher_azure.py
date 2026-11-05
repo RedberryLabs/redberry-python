@@ -117,7 +117,7 @@ def test_a_finished_trace_is_stored_and_reported_after_the_grace_period(valp):
     assert (r.finish, r.cut_reason, r.stored, r.report.outcome, r.agent_id) == ("complete", None, True, "recorded", AGENT)
     tid = format(root.get_span_context().trace_id, "032x")
     doc = valp.document(tid)
-    assert doc["schema"] == "redberry.trace.v1" and doc["producer"]["name"] == "redberry-agent-sdk"
+    assert doc["schema"] == "redberry.trace.v1" and doc["producer"]["name"] == "redberry-sdk"
     assert [s["name"] for s in doc["spans"]] == ["POST /api/refund", "chat gpt-4o"]
     assert doc["spans"][1]["parentSpanId"] == doc["spans"][0]["spanId"] and doc["spans"][1]["kind"] == 2
     assert doc["spans"][1]["attributes"]["gen_ai.usage.input_tokens"] == 12

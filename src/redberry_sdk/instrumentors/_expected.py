@@ -24,8 +24,7 @@ Two ways the check used to be wrong, both fixed here:
   instrumentor patches nothing; ``.instrument()`` does that), and one that fails is reported with
   its error.
 - **A library was detected by import name alone.** The OpenAI Agents SDK's import name is
-  ``agents``, which is also what any project calls its own ``agents/`` package (RAP's, run from its
-  root: system_map §8.12). Where an import name is that generic, ``Expected.distributions`` names
+  ``agents``, which is also what many projects call their own ``agents/`` package. Where an import name is that generic, ``Expected.distributions`` names
   the distribution that must provide it, and a same-named module from anywhere else is not the
   library.
 """
@@ -46,7 +45,7 @@ __all__ = ["Expected", "EXPECTED", "Missing", "missing_instrumentation", "instal
 class Expected:
     library: str                 # import name of the target library
     modules: tuple[str, ...]     # instrumentation modules; any one of them is enough
-    extra: str                   # the redberry-agent-sdk extra that installs one
+    extra: str                   # the redberry-sdk extra that installs one
     # The distribution(s) that must provide ``library`` for it to count. Empty = the import name is
     # distinctive enough on its own. Set where it is not (``agents``).
     distributions: tuple[str, ...] = ()
@@ -96,7 +95,7 @@ def _importable(name: str) -> bool:
 
 
 def install_hint(extra: str) -> str:
-    return f"pip install 'redberry-agent-sdk[{extra}]'"
+    return f"pip install 'redberry-sdk[{extra}]'"
 
 
 def _import_error(name: str) -> str | None:

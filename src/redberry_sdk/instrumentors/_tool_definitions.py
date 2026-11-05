@@ -139,7 +139,7 @@ _TARGETS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-#: Calls recorded verbatim only (RAP docs/valp_single_chain_plan.md, A3): the request and
+#: Calls recorded verbatim only: the request and
 #: the response in one ``redberry.llm.response.raw`` event, and no request or response
 #: snapshot. The Responses API is the OpenAI Agents SDK's model call (OpenInference's
 #: ``response`` LLM span is current when it runs); the normaliser reads it from this

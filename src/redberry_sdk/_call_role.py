@@ -1,8 +1,8 @@
 """``internal_call()``: mark the model calls an agent makes for itself.
 
 A control's verifier, a judge, a planner or a summariser is a model call whose output stays inside
-the agent. Recorded like any other call, its text became a message to the user: RAP's G3 verifier
-put 11 ``ACCEPT`` / ``REJECT`` "replies" into one airline trace. Wrap such a call::
+the agent. Recorded like any other call, its text became a message to the user: a verifier's
+``ACCEPT`` / ``REJECT`` outputs would read as replies. Wrap such a call::
 
     with redberry_sdk.internal_call("verifier"):
         resp = client.chat.completions.create(...)

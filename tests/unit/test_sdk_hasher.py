@@ -139,7 +139,7 @@ def test_the_document_carries_the_agent_on_every_span_and_this_writer_as_produce
     assert env["schema"] == "redberry.trace.v1" and env["cut_reason"] is None
     assert [s["spanId"] for s in env["spans"]] == ["00000000000000bb", "00000000000000aa"]
     assert {s["attributes"]["redberry.agent_id"] for s in env["spans"]} == {AGENT}
-    assert env["producer"]["name"] == "redberry-agent-sdk"
+    assert env["producer"]["name"] == "redberry-sdk"
     assert env["started_at"] == "1970-01-01T00:00:01.000Z" and env["ended_at"] == "1970-01-01T00:00:03.000Z"
     assert storage_path(env) == f"redberry/{AGENT}/1970-01-01/{TRACE}.json.gz"
 
