@@ -46,6 +46,7 @@ from typing import Any, Callable
 
 from opentelemetry import trace
 
+from ._provider_defaults import record_provider_defaults_on_current_span
 from ._request_snapshot import (
     API_ANTHROPIC_MESSAGES, API_OPENAI_CHAT, API_OPENAI_RESPONSES, RAW_EVENT, _is_llm_span, build_raw_attributes,
     record_request_on_current_span, record_response_on_current_span, request_record,
@@ -188,6 +189,8 @@ def enable_tool_definition_capture() -> list[str]:
                                                    server_address=_server_address(instance))
                 except Exception as e:                   # noqa: BLE001
                     logger.warning("failed to record the request snapshot: %s", e)
+                if _api == API_ANTHROPIC_MESSAGES:
+                    _record_provider_defaults(instance, kwargs)
                 result = wrapped(*args, **kwargs)
                 if _wants_raw_response(kwargs):
                     span = trace.get_current_span()
@@ -217,6 +220,8 @@ def enable_tool_definition_capture() -> list[str]:
                              _api: str = api, _kind: str = kind):
                 span = trace.get_current_span()
                 recording = span is not None and span.is_recording() and _is_llm_span(span)
+                if recording and _api == API_ANTHROPIC_MESSAGES:
+                    _record_provider_defaults(instance, kwargs)
                 result = wrapped(*args, **kwargs)
                 if not recording:
                     return result
@@ -229,6 +234,15 @@ def enable_tool_definition_capture() -> list[str]:
         except (ImportError, AttributeError) as e:
             logger.debug("no verbatim capture for %s.%s: %s", module, target, e)
     return patched
+
+
+def _record_provider_defaults(instance: Any, kwargs: dict) -> None:
+    """The Anthropic API version the call uses, and the temperature that version
+    fixes (`_provider_defaults`). A failure is a capture gap, never the caller's error."""
+    try:
+        record_provider_defaults_on_current_span(instance, kwargs)
+    except Exception as e:                               # noqa: BLE001
+        logger.warning("failed to record the provider's API version: %s", e)
 
 
 def _server_address(instance: Any) -> str | None:
