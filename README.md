@@ -47,7 +47,8 @@ def handler(event, context):
 or call `redberry_sdk.flush()` yourself.
 
 **Temperature.** Redberry prices an agent from its sampled behaviour, so the agent's model calls must run at
-temperature 1.0.
+temperature 1.0. With the Anthropic API version `2026-10-21` (the default from the Python `anthropic` 2.0.0), send no
+temperature: that version rejects it and samples at 1.0, and the SDK records that.
 
 ## Where records go
 
