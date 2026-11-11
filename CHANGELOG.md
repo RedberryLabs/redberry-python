@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - **Anthropic API version `2026-10-21`.** That version, the default from the Python `anthropic` 2.0.0, rejects
   `temperature`, `top_p` and `top_k` on every model and samples at temperature 1.0, so the agent cannot state its
