@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redberry-cli"
+dynamic = ["version"]
+description = "The redberry command: sign in to Redberry and wire an agent's code to send its spans to your Redberry install."
+readme = "README.md"
+# TODO: the repository's root LICENSE switches to PolyForm Shield 1.0.0 in PR #4. cli/LICENSE and cli/NOTICE are
+# copies of the root files for now; when that lands, cli/LICENSE must match it.
+license = "LicenseRef-PolyForm-Shield-1.0.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Redberry Labs" }]
+requires-python = ">=3.11"
+keywords = ["redberry", "ai agents", "cli", "opentelemetry"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = ["redberry-sdk>=0.3.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+redberry = "redberry_cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/RedberryLabs/redberry-python"
+Source = "https://github.com/RedberryLabs/redberry-python/tree/main/cli"
+Changelog = "https://github.com/RedberryLabs/redberry-python/blob/main/cli/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = { attr = "redberry_cli._version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["redberry_cli*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

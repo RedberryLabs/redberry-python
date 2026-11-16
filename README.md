@@ -94,6 +94,12 @@ trying every 5 minutes; as soon as the cause is fixed, records are sent again, w
 | `RB-SDK-DISC-003` | On Azure, the install could not be found | Check that the app has a managed identity and was chosen as an agent (run the install again and select it) |
 | `RB-SDK-DISC-004` | The agent is named, but not on Google Cloud, AWS or Azure, and no endpoint is set | Set `REDBERRY_INGEST_URL` |
 
+## Command-line tool
+
+The `redberry` command (distribution `redberry-cli`, in [`cli/`](cli/README.md)) signs a machine in to Redberry
+and wires an agent's code on AWS Lambda or Azure Functions to send its spans to your Redberry install. See
+[cli/README.md](cli/README.md).
+
 ## License
 
 Source-available under the [PolyForm Shield License 1.0.0](LICENSE): you may read, use, modify and redistribute this software, including commercially, for any purpose other than providing a product that competes with Redberry Labs Ltd. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

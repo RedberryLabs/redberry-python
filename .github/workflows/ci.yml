@@ -20,3 +20,41 @@ jobs:
       - run: python -m pip install -e ".[dev,providers,openai-agents]"
       - run: ruff check src tests
       - run: pytest -q
+  cli:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,providers]" -e "./cli[dev]"
+      - run: ruff check cli
+      - run: pytest -q cli/tests
+      # The CLI is public: it may import redberry_sdk and the standard library, never a private package.
+      - name: No private imports in the CLI
+        run: |
+          if grep -rnE '^\s*(from|import)\s+(redberry_extractor|redberry_normaliser|redberry_models|redberry_store|redberry_gateway|redberry_foundry|redberry_private|redberry_infra|valp_)' cli/src; then
+            echo "cli/src imports a private package"; exit 1
+          fi
+  cli-clean-install:
+    # The built wheel, installed with redberry-sdk only (no checkout on the path): what `uv tool install` gets.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build --wheel --outdir dist/sdk .
+      - run: python -m build --wheel --outdir dist/cli cli
+      - name: Install into a clean venv and run it
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/sdk/*.whl dist/cli/*.whl
+          cd /tmp
+          /tmp/clean/bin/python -c "import redberry_cli.main"
+          /tmp/clean/bin/redberry --help
