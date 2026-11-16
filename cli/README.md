@@ -1,7 +1,7 @@
 # redberry-cli
 
 The `redberry` command. It signs a machine in to Redberry for your company, and wires an agent's code on AWS
-Lambda or Azure Functions so the agent sends its spans to your Redberry install. The agent itself uses
+Lambda, Azure Functions or Vercel so the agent sends its spans to your Redberry install. The agent itself uses
 [`redberry-sdk`](https://pypi.org/project/redberry-sdk/) (Python) or
 [`@redberrylabs/otel`](https://www.npmjs.com/package/@redberrylabs/otel) (Node.js).
 
@@ -23,13 +23,14 @@ or `pipx install redberry-cli`. Python 3.11 or later.
 | `redberry connect` | Without `--platform`: agents on a cloud install are set up from the Redberry portal's install command. |
 | `redberry connect --platform aws-lambda` | Wires a Node.js or Python Lambda function (below). |
 | `redberry connect --platform azure-functions` | Wires a Node.js (v4) or Python (v2) Azure function app (below). |
+| `redberry connect --platform vercel` | Wires a Next.js app on the Vercel AI SDK, and sets the project's `REDBERRY_*` variables (below). |
 
 The API is `https://api.redberry.sbs`; `--api` or `REDBERRY_API_URL` selects another. `--json` prints a
 command's result for scripts.
 
 ## What `connect --platform` does
 
-`connect` reads the function on the cloud (`aws lambda get-function-configuration`, `az functionapp show`),
+For AWS Lambda and Azure Functions, `connect` reads the function on the cloud (`aws lambda get-function-configuration`, `az functionapp show`),
 finds the handler and the model calls it reaches in the code in `--repo` (default: the current folder), shows
 the changes as a diff and asks before writing them (`--yes` applies them without asking). It never deploys
 and sets nothing on the cloud: there is no key or setting to add, because the SDK finds your install from
@@ -61,6 +62,26 @@ On both platforms `connect` sets `temperature` to 1 on each model call it finds 
 writes what it found to `.redberry/aws-lambda.json` or `.redberry/azure-functions.json` (no secrets). Code an
 earlier version of `connect` wired with the in-process hasher (`redberry_sdk.hasher`, `withRedberry`) is moved
 to the form above when you run `connect` again.
+
+**Vercel** (a Next.js app using the Vercel AI SDK, run in the app's folder): the app is one agent, named by
+`--name` (default: the Vercel project's name from `.vercel/project.json`, else the package's).
+
+- Writes `instrumentation.ts` (`src/instrumentation.ts` in a `src/app` layout): `@vercel/otel`'s
+  `registerOTel` with `redberryExporter(exporterOptionsFrom({}))` from `@redberrylabs/otel` as the trace
+  exporter, the agent's name as the resource attribute `redberry.agent.name`, and the AI SDK's OpenTelemetry
+  integration. An `instrumentation.ts` of your own is left as it is, and the code to merge is printed.
+- Adds `@redberrylabs/otel` (^0.6.0), `@vercel/otel`, `@ai-sdk/otel` and the OpenTelemetry peers to
+  `package.json`, and sets `temperature` to 1 on each model call the app's routes reach.
+- The exporter reads `REDBERRY_*` variables: the install prints them when it is run with `--vercel-team`
+  (`REDBERRY_CLOUD`, `REDBERRY_INGEST_URL` and the cloud's federation names). Save that output to a file and
+  pass `--env-file FILE`, or export the variables before running `connect`. `connect` checks the set is complete
+  for the cloud and, when the app is linked (`vercel link`) and the Vercel CLI is installed, sets them on the
+  project's production environment with `vercel env add`. `--no-env` prints them instead. None of them is a
+  secret: the deployment's Vercel OIDC token is exchanged for a short-lived credential.
+- Turn on the project's OIDC federation (Settings > Security > Secure backend access, team issuer).
+
+An app connected by an earlier version with the in-process hasher gets the new `instrumentation.ts`; remove the
+old variables it set (`REDBERRY_SIGNING_KEY`, `REDBERRY_PROJECT_TOKEN` and the others) from the project.
 
 `--extract` writes the agent's manifest (`.redberry/manifest.json`) with `redberry-extract` when that tool is
 installed. It is not part of this release; without it, write the manifest by hand.

@@ -147,14 +147,13 @@ def test_bare_connect_points_at_the_portals_install_command(api, capsys):
     assert "Redberry portal's install command" in out and "redberry connect --platform <name>" in out
     assert "aws-lambda" in out and "azure-functions" in out
     assert _main(api, "connect", "--json") == 0
-    assert json.loads(capsys.readouterr().out)["platforms"] == ["aws-lambda", "azure-functions"]
+    assert json.loads(capsys.readouterr().out)["platforms"] == ["aws-lambda", "azure-functions", "vercel"]
 
 
 def test_bare_connect_needs_no_sign_in_and_refuses_platform_flags(api, capsys):
     assert _main(api, "connect", "--function", "f") == 1 and "--platform aws-lambda" in capsys.readouterr().err
     assert _main(api, "connect", "--app", "a") == 1 and "--platform azure-functions" in capsys.readouterr().err
-    with pytest.raises(SystemExit):
-        _main(api, "connect", "--platform", "vercel")                  # not in this release
+    assert _main(api, "connect", "--env-file", "x") == 1 and "--platform vercel" in capsys.readouterr().err
     with pytest.raises(SystemExit):
         _main(api, "connect", "--platform", "foundry")
 
