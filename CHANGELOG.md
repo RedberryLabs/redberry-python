@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - **Licence.** From this release the package is licensed under the PolyForm Shield License 1.0.0, replacing the
   Apache License 2.0. Versions 0.3.0 and earlier remain under the Apache License 2.0. See `LICENSE` and `NOTICE`.
