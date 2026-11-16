@@ -7,8 +7,6 @@ name = "redberry-cli"
 dynamic = ["version"]
 description = "The redberry command: sign in to Redberry and wire an agent's code to send its spans to your Redberry install."
 readme = "README.md"
-# TODO: the repository's root LICENSE switches to PolyForm Shield 1.0.0 in PR #4. cli/LICENSE and cli/NOTICE are
-# copies of the root files for now; when that lands, cli/LICENSE must match it.
 license = "LicenseRef-PolyForm-Shield-1.0.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Redberry Labs" }]
