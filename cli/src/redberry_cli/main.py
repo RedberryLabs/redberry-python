@@ -11,11 +11,14 @@ still has access to the company.
 forgets it here.
 
 **connect** — wires an agent's code so it sends its spans to the customer's Redberry installation, which
-the agent's SDK finds from where it runs (no key, no setting). Agents on a cloud install are set up from
-the Redberry portal's install command; ``connect --platform`` covers the serverless platforms:
+the agent's SDK finds from where it runs (no key; on Vercel, the settings the install printed). Agents on a
+cloud install are set up from the Redberry portal's install command; ``connect --platform`` covers the
+serverless platforms:
 
 * ``--platform aws-lambda``: a Node.js or Python Lambda function (``redberry_cli.aws_lambda``);
-* ``--platform azure-functions``: a Node.js v4 or Python v2 function app (``redberry_cli.azure_functions``).
+* ``--platform azure-functions``: a Node.js v4 or Python v2 function app (``redberry_cli.azure_functions``);
+* ``--platform vercel``: a Next.js app on the Vercel AI SDK, whose exporter takes the ``REDBERRY_*`` variables
+  the install prints for ``--vercel-team`` (``--env-file``), set on the Vercel project (``redberry_cli.vercel``).
 
 Each shows the diff and asks before it changes a file (``--yes`` applies without asking), sets
 ``temperature`` 1 on each model call it finds (pricing needs exactly 1), and never deploys.
@@ -185,12 +188,12 @@ def _machine_name() -> str | None:
     return None
 
 
-PLATFORMS = ("aws-lambda", "azure-functions")
+PLATFORMS = ("aws-lambda", "azure-functions", "vercel")
 
 #: What bare ``redberry connect`` says: the install command does the rest.
 PORTAL_MESSAGE = ("Agents on a cloud install are set up from the Redberry portal's install command: run it "
                   "where the install lives, and choose the agents there.\n"
-                  "For AWS Lambda and Azure Functions, wire the agent's code with "
+                  "For AWS Lambda, Azure Functions and Vercel, wire the agent's code with "
                   "`redberry connect --platform <name>` (" + ", ".join(PLATFORMS) + ").")
 
 
@@ -204,6 +207,10 @@ def cmd_connect(a, out=print, run=None) -> int:
         for flag in ("app", "resource_group", "subscription"):
             if getattr(a, flag, None):
                 raise CliError(f"--{flag.replace('_', '-')} is for --platform azure-functions")
+    if platform != "vercel":
+        for flag in ("env_file", "no_env"):
+            if getattr(a, flag, None):
+                raise CliError(f"--{flag.replace('_', '-')} is for --platform vercel")
     if getattr(a, "extract", False):
         repo = Path(a.repo).resolve()
         manifest = Path(a.manifest) if Path(a.manifest).is_absolute() else repo / a.manifest
@@ -217,6 +224,10 @@ def cmd_connect(a, out=print, run=None) -> int:
         from redberry_cli import azure_functions  # the function app sends its own spans
 
         return azure_functions.cmd_connect(a, out=out, run=run)
+    if platform == "vercel":
+        from redberry_cli import vercel  # the deployment sends its own spans
+
+        return vercel.cmd_connect(a, out=out, run=run)
     if a.json:
         out(json.dumps({"platform": None, "message": PORTAL_MESSAGE, "platforms": list(PLATFORMS)}, indent=2))
     else:
@@ -282,9 +293,9 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("logout", help="forget the session").set_defaults(fn=cmd_logout)
     con = sub.add_parser("connect", help="wire an agent's code to send its spans to your Redberry install")
     con.add_argument("--platform", choices=PLATFORMS,
-                     help="aws-lambda or azure-functions (without it: how agents on a cloud install are set up)")
+                     help="aws-lambda, azure-functions or vercel (without it: how agents on a cloud install are set up)")
     con.add_argument("--name", help="the agent's name (1 to 64 printable characters; default: the function's or "
-                                    "the function app's name); --platform azure-functions: also name=function,... "
+                                    "the function app's name; vercel: the Vercel project's); --platform azure-functions: also name=function,... "
                                     "to pick the functions")
     con.add_argument("--repo", default=".", help="the agent's code (default: here)")
     con.add_argument("--manifest", default=".redberry/manifest.json", help="relative to --repo, or absolute")
@@ -300,6 +311,11 @@ def parser() -> argparse.ArgumentParser:
     aw = con.add_argument_group("AWS Lambda (--platform aws-lambda: a Node.js or Python function)")
     aw.add_argument("--function", help="the Lambda function's name")
     aw.add_argument("--region", help="the Lambda function's region (default: the aws CLI's)")
+    vc = con.add_argument_group("Vercel (--platform vercel: a Next.js app on the Vercel AI SDK)")
+    vc.add_argument("--env-file", help="the REDBERRY_* lines the install printed for --vercel-team, saved to a file "
+                                       "(else: the same variables in this environment)")
+    vc.add_argument("--no-env", action="store_true",
+                    help="print the REDBERRY_* variables instead of setting them with the Vercel CLI")
     con.set_defaults(fn=cmd_connect)
     return p
 

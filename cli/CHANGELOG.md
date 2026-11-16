@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **`connect --platform vercel`**, for a Next.js app on the Vercel AI SDK, rewritten for the ingest exporter. It
+  writes `instrumentation.ts` with `@vercel/otel`'s `registerOTel` and `redberryExporter(exporterOptionsFrom({}))`
+  from `@redberrylabs/otel` (^0.6.0), adds the dependencies, sets `temperature` to 1 on the routes' model calls,
+  and sets the `REDBERRY_*` variables the install printed for `--vercel-team` (`--env-file`, or the environment)
+  on the project with `vercel env add`; `--no-env` prints them. No signing key, store or Redberry API call. An
+  `instrumentation.ts` written for the earlier in-process hasher is replaced.
+
 ## 0.1.0 (unreleased)
 
 - First release of `redberry-cli`, the `redberry` command: `login`, `whoami`, `logout` and
