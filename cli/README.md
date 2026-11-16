@@ -23,7 +23,6 @@ or `pipx install redberry-cli`. Python 3.11 or later.
 | `redberry connect` | Without `--platform`: agents on a cloud install are set up from the Redberry portal's install command. |
 | `redberry connect --platform aws-lambda` | Wires a Node.js or Python Lambda function (below). |
 | `redberry connect --platform azure-functions` | Wires a Node.js (v4) or Python (v2) Azure function app (below). |
-| `redberry setup-aws` / `redberry setup-azure` | Make an S3 bucket with Object Lock, or an immutable Azure Blob container, that a workload writes to as its own identity, with no long-lived key. `--print` shows the commands instead of running them. |
 
 The API is `https://api.redberry.sbs`; `--api` or `REDBERRY_API_URL` selects another. `--json` prints a
 command's result for scripts.

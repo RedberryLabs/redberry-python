@@ -2,8 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
-- First release of `redberry-cli`, the `redberry` command: `login`, `whoami`, `logout`, `connect`, `setup-aws`
-  and `setup-azure`.
+- First release of `redberry-cli`, the `redberry` command: `login`, `whoami`, `logout` and
+  `connect`.
 - `connect --platform aws-lambda` and `connect --platform azure-functions` wire a Node.js or Python function to
   send its spans to the customer's Redberry install: `redberry_sdk.init(agent=…)` and `redberry_sdk.flush_after`
   (`redberry-sdk[providers]` from PyPI) in Python, `init({ agent })` from `@redberrylabs/otel/init` (^0.5.0) in

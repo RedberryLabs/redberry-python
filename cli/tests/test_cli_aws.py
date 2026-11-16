@@ -1,4 +1,4 @@
-"""`redberry setup-aws` and `redberry connect --platform aws-lambda`, against a faked `aws` (as
+"""`redberry connect --platform aws-lambda`, against a faked `aws` (as
 test_cli_azure.py does for `az`). No AWS resource is created or changed, and no Redberry API is called:
 connect only wires the function's code (``init()`` finds the installation from the function's own credentials).
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from redberry_cli import aws_lambda as awl
-from redberry_cli import aws_setup
+from redberry_cli import _cloud
 from redberry_cli import main as cli
 
 ACCOUNT, REGION = "123456789012", "eu-west-1"
@@ -100,226 +100,38 @@ class _Aws:
 
 
 
-# ── setup-aws ───────────────────────────────────────────────────────────────────────────────
-
-
-def _setup(*argv, run=None, slept=None, region=REGION):
-    args = cli.parser().parse_args(["setup-aws", "--region", region, *argv])
-    lines: list[str] = []
-    rc = aws_setup.cmd_setup_aws(args, out=lines.append, run=run,
-                                 sleep=(slept.append if slept is not None else lambda s: None))
-    return rc, "\n".join(lines)
-
-
-def _arg_json(cmd: list[str], flag: str) -> dict:
-    return json.loads(cmd[cmd.index(flag) + 1])
-
-
-def test_setup_aws_prints_the_commands_for_a_vercel_project(tmp_path):
-    rc, out = _setup("--bucket", f"s3://{BUCKET}", "--vercel-team", "acme", "--vercel-project", "acme-support",
-                     "--repo", str(tmp_path), "--print")
-    assert rc == 0
-    assert (f"aws s3api create-bucket --bucket {BUCKET} --region {REGION} --object-ownership BucketOwnerEnforced "
-            f"--create-bucket-configuration LocationConstraint={REGION} --object-lock-enabled-for-bucket") in out
-    assert ("--public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,"
-            "RestrictPublicBuckets=true") in out
-    assert '"SSEAlgorithm":"AES256"' in out and "put-bucket-versioning" in out
-    assert ('\'{"ObjectLockEnabled":"Enabled","Rule":{"DefaultRetention":{"Mode":"GOVERNANCE","Years":7}}}\'') in out
-    # URL values travel as JSON: AWS CLI v1 would fetch a bare https:// argument (cli_follow_urlparam).
-    assert ("aws iam create-open-id-connect-provider --cli-input-json "
-            "'{\"Url\":\"https://oidc.vercel.com/acme\",\"ClientIDList\":[\"https://vercel.com/acme\"]}'") in out
-    assert '"oidc.vercel.com/acme:sub":"owner:acme:project:acme-support:environment:production"' in out
-    assert "\"Federated\":\"arn:aws:iam::'\"${ACCOUNT_ID}\"':oidc-provider/oidc.vercel.com/acme\"" in out
-    assert f'"Resource":["arn:aws:s3:::{BUCKET}/redberry/*"]' in out
-    assert f"# then: the bucket s3://{BUCKET} is ready for its writer" in out
-    assert "COMPLIANCE" not in out and not (tmp_path / ".redberry").exists()
-
-
-def test_setup_aws_runs_them_and_records_what_it_made(tmp_path):
-    run, slept = _Aws(unseen=2), []
-    rc, out = _setup("--bucket", BUCKET, "--vercel-team", "acme", "--vercel-project", "acme-support",
-                     "--repo", str(tmp_path), run=run, slept=slept)
-    assert rc == 0 and slept == [3, 5] and out.count("not visible to IAM yet") == 2
-    assert run.kinds() == ["sts get-caller-identity", "s3api head-bucket", "s3api create-bucket",
-                           "s3api put-public-access-block", "s3api put-bucket-encryption",
-                           "s3api put-bucket-ownership-controls", "s3api put-bucket-versioning",
-                           "s3api put-bucket-policy", "s3api get-object-lock-configuration", "s3api put-object-lock-configuration",
-                           "iam list-open-id-connect-providers", "iam create-open-id-connect-provider",
-                           "iam create-role", "iam create-role", "iam create-role", "iam put-role-policy"]
-    assert all(c[0] == "aws" for c in run.calls)
-    assert "--object-lock-enabled-for-bucket" in run.first("s3api", "create-bucket")
-    lock = _arg_json(run.first("s3api", "put-object-lock-configuration"), "--object-lock-configuration")
-    assert lock["Rule"]["DefaultRetention"] == {"Mode": "GOVERNANCE", "Years": 7}
-    trust = _arg_json(run.first("iam", "create-role"), "--assume-role-policy-document")
-    (st,) = trust["Statement"]
-    assert st["Principal"] == {"Federated": PROVIDER_ARN} and st["Action"] == "sts:AssumeRoleWithWebIdentity"
-    assert st["Condition"]["StringEquals"] == {"oidc.vercel.com/acme:aud": "https://vercel.com/acme",
-                                               "oidc.vercel.com/acme:sub": "owner:acme:project:acme-support:environment:production"}
-    policy = run.first("iam", "put-role-policy")
-    assert policy[policy.index("--role-name") + 1] == "redberry-vercel-acme-support"
-    allow, listing = _arg_json(policy, "--policy-document")["Statement"]
-    assert allow["Action"] == ["s3:PutObject", "s3:GetObject"] and allow["Resource"] == [f"arn:aws:s3:::{BUCKET}/redberry/*"]
-    assert listing["Action"] == "s3:ListBucket" and listing["Resource"] == [f"arn:aws:s3:::{BUCKET}"]
-    granted = json.dumps(_arg_json(policy, "--policy-document"))
-    assert "Delete" not in granted and "Retention" not in granted and "Bypass" not in granted
-    (deny,) = _arg_json(run.first("s3api", "put-bucket-policy"), "--policy")["Statement"]
-    assert (deny["Effect"], deny["Principal"], deny["Action"]) == ("Deny", "*", "s3:PutObject")
-    assert deny["Resource"] == f"arn:aws:s3:::{BUCKET}/*"
-    assert deny["Condition"] == {"Null": {"s3:if-none-match": "true"}}          # creates only: no overwrite
-    record = json.loads((tmp_path / ".redberry" / "aws.json").read_text())
-    assert record["bucket_url"] == f"s3://{BUCKET}" and record["region"] == REGION and record["account_id"] == ACCOUNT
-    assert record["role_arn"] == f"arn:aws:iam::{ACCOUNT}:role/redberry-vercel-acme-support"
-    assert record["oidc_provider_arn"] == PROVIDER_ARN and record["retention"] == {"mode": "GOVERNANCE", "years": 7}
-    assert record["locked"] is False and "secret" not in json.dumps(record).lower()
-    assert f"Next: the bucket s3://{BUCKET} is ready for its writer" in out
-    assert "GOVERNANCE mode. Once the setup is proven" in out
-
-
-def test_setup_aws_again_changes_nothing_it_need_not(tmp_path):
-    run = _Aws(buckets={BUCKET}, providers=[PROVIDER_ARN], exists=("iam create-role",))
-    rc, out = _setup("--bucket", BUCKET, "--vercel-team", "acme", "--vercel-project", "acme-support",
-                     "--repo", str(tmp_path), run=run)
-    assert rc == 0 and "create-bucket" not in " ".join(run.kinds()) and "already there" in out
-    assert "iam create-open-id-connect-provider" not in run.kinds()
-    add = run.first("iam", "add-client-id-to-open-id-connect-provider")
-    doc = json.loads(add[add.index("--cli-input-json") + 1])
-    assert doc == {"OpenIDConnectProviderArn": PROVIDER_ARN, "ClientID": "https://vercel.com/acme"}
-    assert "iam update-assume-role-policy" in run.kinds()          # the role was there: its trust is set again
-
-
-def test_setup_aws_lock_is_compliance_and_asks_first(tmp_path, monkeypatch):
-    monkeypatch.setattr(aws_setup.sys.stdin, "isatty", lambda: False)
-    with pytest.raises(aws_setup.SetupError, match="needs --yes"):
-        _setup("--bucket", BUCKET, "--function", "refund-agent", "--lock", "--repo", str(tmp_path), run=_Aws())
-    run = _Aws(function={"Role": EXEC_ROLE})
-    rc, out = _setup("--bucket", BUCKET, "--function", "refund-agent", "--lock", "--yes", "--retention", "10y",
-                     "--repo", str(tmp_path), run=run)
-    assert rc == 0 and "THIS CANNOT BE UNDONE" in out and "root user" in out
-    lock = _arg_json(run.first("s3api", "put-object-lock-configuration"), "--object-lock-configuration")
-    assert lock["Rule"]["DefaultRetention"] == {"Mode": "COMPLIANCE", "Years": 10}
-    assert json.loads((tmp_path / ".redberry" / "aws.json").read_text())["locked"] is True
-    _rc, printed = _setup("--bucket", BUCKET, "--function", "f", "--lock", "--print")
-    assert "# WARNING: --lock sets COMPLIANCE mode" in printed and '"Mode":"COMPLIANCE"' in printed
-
-
-def test_setup_aws_never_turns_compliance_back_into_governance(tmp_path):
-    run = _Aws(buckets={BUCKET}, lock_mode="COMPLIANCE", function={"Role": EXEC_ROLE})
-    rc, out = _setup("--bucket", BUCKET, "--function", "refund-agent", "--repo", str(tmp_path), run=run)
-    assert rc == 0 and "already keeps objects in COMPLIANCE mode" in out
-    assert "s3api put-object-lock-configuration" not in run.kinds()
-
-
-def test_setup_aws_function_puts_the_policy_on_its_execution_role(tmp_path):
-    run = _Aws(function={"FunctionArn": FN_ARN, "Role": EXEC_ROLE})
-    rc, out = _setup("--bucket", BUCKET, "--function", "refund-agent", "--function-region", "us-east-2",
-                     "--retention", "1d", "--repo", str(tmp_path), run=run)
-    assert rc == 0
-    get = run.first("lambda", "get-function-configuration")
-    assert get[get.index("--region") + 1] == "us-east-2"
-    policy = run.first("iam", "put-role-policy")
-    assert policy[policy.index("--role-name") + 1] == "refund-agent-role-x1"          # the path is not the name
-    assert not any(k.startswith("iam create") for k in run.kinds())
-    lock = _arg_json(run.first("s3api", "put-object-lock-configuration"), "--object-lock-configuration")
-    assert lock["Rule"]["DefaultRetention"] == {"Mode": "GOVERNANCE", "Days": 1}
-    record = json.loads((tmp_path / ".redberry" / "aws.json").read_text())
-    assert record["function"] == {"name": "refund-agent", "region": "us-east-2", "role_arn": EXEC_ROLE,
-                                  "policy": "redberry-s3-write"}
-    assert f"Next: the bucket s3://{BUCKET} is ready for its writer" in out
-
-
-def test_setup_aws_us_east_1_has_no_location_constraint(tmp_path):
-    _rc, out = _setup("--bucket", BUCKET, "--function", "f", "--print", region="us-east-1")
-    assert "LocationConstraint" not in out
-
-
-def test_setup_aws_evidence_makes_three_buckets_one_locked(tmp_path):
-    run = _Aws()
-    rc, out = _setup("--evidence", "--prefix", "acme-valp", "--repo", str(tmp_path), run=run)
-    assert rc == 0
-    made = [c[c.index("--bucket") + 1] for c in run.calls if c[1:3] == ["s3api", "create-bucket"]]
-    assert made == ["acme-valp-evidence", "acme-valp-payloads", "acme-valp-index"]
-    locked = [c[c.index("--bucket") + 1] for c in run.calls if "--object-lock-enabled-for-bucket" in c]
-    assert locked == ["acme-valp-evidence"]
-    versioned = [c[c.index("--bucket") + 1] for c in run.calls if c[1:3] == ["s3api", "put-bucket-versioning"]]
-    assert versioned == ["acme-valp-evidence"]           # payloads and index: no versions, erasure really deletes
-    policies = [c[c.index("--bucket") + 1] for c in run.calls if c[1:3] == ["s3api", "put-bucket-policy"]]
-    assert policies == ["acme-valp-evidence"]            # create-only where Object Lock is
-    assert sum(c[1:3] == ["s3api", "put-public-access-block"] for c in run.calls) == 3
-    trust = _arg_json(run.first("iam", "create-role"), "--assume-role-policy-document")
-    assert trust["Statement"][0]["Principal"] == {"Service": "ec2.amazonaws.com"}
-    evidence, rest, listing = _arg_json(run.first("iam", "put-role-policy"), "--policy-document")["Statement"]
-    assert evidence["Action"] == ["s3:PutObject", "s3:GetObject"]
-    assert evidence["Resource"] == ["arn:aws:s3:::acme-valp-evidence/*"]
-    assert "s3:DeleteObject" in rest["Action"]
-    assert rest["Resource"] == ["arn:aws:s3:::acme-valp-payloads/*", "arn:aws:s3:::acme-valp-index/*"]
-    assert listing["Action"][0] == "s3:ListBucket"
-    assert listing["Resource"] == [f"arn:aws:s3:::acme-valp-{r}" for r in ("evidence", "payloads", "index")]
-    assert "iam create-instance-profile" in run.kinds() and "iam add-role-to-instance-profile" in run.kinds()
-    assert "associate-iam-instance-profile" in out and "--http-put-response-hop-limit 2" in out
-    assert ("the buckets s3://acme-valp-evidence, s3://acme-valp-payloads and s3://acme-valp-index are ready "
-            f"(region {REGION})") in out
-    record = json.loads((tmp_path / ".redberry" / "aws.json").read_text())
-    assert record["object_lock"] == ["evidence"] and record["instance_profile"] == "redberry-valp-sink"
-    # Again: the profile already holds the role (IAM: LimitExceeded) is fine.
-    run2 = _Aws(buckets={"acme-valp-evidence", "acme-valp-payloads", "acme-valp-index"},
-                fail="add-role-to-instance-profile")
-    run2.fail = None
-    rc, _ = _setup("--evidence", "--prefix", "acme-valp", "--repo", str(tmp_path), run=run2)
-    assert rc == 0
-
-
-def test_setup_aws_checks_its_arguments(tmp_path):
-    with pytest.raises(aws_setup.SetupError, match="one of: --vercel-team"):
-        _setup("--bucket", BUCKET, "--print")
-    with pytest.raises(aws_setup.SetupError, match="one of"):
-        _setup("--bucket", BUCKET, "--evidence", "--function", "f", "--print")
-    with pytest.raises(aws_setup.SetupError, match="--vercel-project"):
-        _setup("--bucket", BUCKET, "--vercel-team", "acme", "--repo", str(tmp_path), "--print")
-    with pytest.raises(aws_setup.SetupError, match="--prefix"):
-        _setup("--evidence", "--print")
-    with pytest.raises(aws_setup.SetupError, match="drop --bucket"):
-        _setup("--evidence", "--bucket", BUCKET, "--print")
-    with pytest.raises(aws_setup.SetupError, match="not an S3 bucket"):
-        _setup("--bucket", "Acme_Bucket", "--function", "f", "--print")
-    with pytest.raises(aws_setup.SetupError, match="--region"):
-        _setup("--bucket", BUCKET, "--function", "f", "--print", region="europe")
-    with pytest.raises(aws_setup.SetupError, match="shortest retention is one day"):
-        _setup("--bucket", BUCKET, "--function", "f", "--retention", "12h", "--print")
-    assert aws_setup.retention("30d") == ("Days", 30) and aws_setup.retention("7y") == ("Years", 7)
-
-
-def test_setup_aws_stops_on_a_real_failure(tmp_path):
-    with pytest.raises(aws_setup.SetupError, match="put-public-access-block failed: An error occurred \\(AccessDenied"):
-        _setup("--bucket", BUCKET, "--function", "f", "--repo", str(tmp_path), run=_Aws(fail="put-public-access-block"))
-    assert not (tmp_path / ".redberry" / "aws.json").exists()
-    taken = _Aws(fail="create-bucket")
-    taken.fail = None
-
-    def run(cmd, **kw):
-        r = taken(cmd, **kw)
-        if cmd[1:3] == ["s3api", "create-bucket"]:
-            r.returncode, r.stderr = 254, "An error occurred (BucketAlreadyExists) when calling the CreateBucket"
-        return r
-
-    with pytest.raises(aws_setup.SetupError, match="is taken"):
-        _setup("--bucket", BUCKET, "--function", "f", "--repo", str(tmp_path), run=run)
-    with pytest.raises(aws_setup.SetupError, match="not signed in"):
-        _setup("--bucket", BUCKET, "--function", "f", "--repo", str(tmp_path), run=_Aws(fail="get-caller-identity"))
+# ── the aws CLI ─────────────────────────────────────────────────────────────────────────────
 
 
 def test_aws_binary_falls_back_to_the_venv(tmp_path, monkeypatch):
     monkeypatch.delenv("AWS")
-    monkeypatch.setattr(aws_setup.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(_cloud.shutil, "which", lambda _n: None)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    assert aws_setup.aws_binary() == "aws"
+    assert _cloud.aws_binary() == "aws"
     venv = tmp_path / ".aws-cli-venv" / "bin" / "aws"
     venv.parent.mkdir(parents=True)
     venv.write_text("")
-    assert aws_setup.aws_binary() == str(venv)
-    monkeypatch.setattr(aws_setup.shutil, "which", lambda _n: "/usr/local/bin/aws")
-    assert aws_setup.aws_binary() == "/usr/local/bin/aws"
+    assert _cloud.aws_binary() == str(venv)
+    monkeypatch.setattr(_cloud.shutil, "which", lambda _n: "/usr/local/bin/aws")
+    assert _cloud.aws_binary() == "/usr/local/bin/aws"
     monkeypatch.setenv("AWS", "/opt/aws")
-    assert aws_setup.aws_binary() == "/opt/aws"
+    assert _cloud.aws_binary() == "/opt/aws"
+
+
+
+
+def test_regions_are_checked():
+    assert _cloud.region("eu-west-1") == "eu-west-1" and _cloud.region("us-gov-west-1") == "us-gov-west-1"
+    for bad in ("", "eu-west", "EU-WEST-1", "europe"):
+        with pytest.raises(_cloud.SetupError, match="an AWS region"):
+            _cloud.region(bad)
+
+
+def test_a_missing_aws_cli_says_how_to_install_it():
+    def run(cmd, **kw):
+        raise FileNotFoundError(cmd[0])
+    with pytest.raises(_cloud.SetupError, match="AWS CLI \\(aws\\) is not installed"):
+        _cloud.aws(run, ["aws", "sts", "get-caller-identity"])
 
 
 # ── connect --platform aws-lambda: Node.js ──────────────────────────────────────────────────

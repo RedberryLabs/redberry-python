@@ -40,7 +40,7 @@ from pathlib import Path
 
 from redberry_cli import _edits as ed
 from redberry_cli import _ts_tools as ts
-from redberry_cli import aws_setup
+from redberry_cli import _cloud
 from redberry_cli.main import CliError
 
 PLATFORM = "aws-lambda"
@@ -72,11 +72,11 @@ class Handler:
 def _region(a, run) -> str:
     value = a.region or os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
     if not value:
-        r = aws_setup.aws(run, ["aws", "configure", "get", "region"])
+        r = _cloud.aws(run, ["aws", "configure", "get", "region"])
         value = (getattr(r, "stdout", "") or "").strip() if r.returncode == 0 else ""
     try:
-        return aws_setup.region(value)
-    except aws_setup.SetupError:
+        return _cloud.region(value)
+    except _cloud.SetupError:
         raise CliError("--platform aws-lambda needs the function's region: --region (e.g. eu-west-1)") from None
 
 
@@ -86,8 +86,8 @@ def function_config(a, run) -> dict:
     cmd = ["aws", "lambda", "get-function-configuration", "--function-name", a.function, "--region", reg,
            "--output", "json"]
     try:
-        r = aws_setup.aws(run, cmd)
-    except aws_setup.SetupError as e:
+        r = _cloud.aws(run, cmd)
+    except _cloud.SetupError as e:
         raise CliError(str(e)) from None
     if r.returncode != 0:
         raise CliError(f"cannot read the Lambda function {a.function} in {reg} (aws lambda get-function-configuration): "
@@ -122,7 +122,7 @@ def iac_tools(repo: Path, tags: dict) -> list[str]:
 
 
 def function_tags(cfg: dict, run) -> dict:
-    r = aws_setup.aws(run, ["aws", "lambda", "list-tags", "--resource", cfg["FunctionArn"], "--region",
+    r = _cloud.aws(run, ["aws", "lambda", "list-tags", "--resource", cfg["FunctionArn"], "--region",
                             cfg["_function"]["region"], "--output", "json"])
     try:
         return dict(json.loads(getattr(r, "stdout", "") or "{}").get("Tags") or {}) if r.returncode == 0 else {}

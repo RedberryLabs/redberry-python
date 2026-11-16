@@ -1,4 +1,4 @@
-"""`redberry setup-azure` and `redberry connect --platform azure-functions`, against a faked `az`. No Azure
+"""`redberry connect --platform azure-functions`, against a faked `az`. No Azure
 resource is created or changed, and no Redberry API is called: connect only wires the app's code (``init()``
 finds the installation with the app's managed identity).
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from redberry_cli import azure_functions as azf
-from redberry_cli import azure_setup
+from redberry_cli import _cloud
 from redberry_cli import main as cli
 
 SUB, TENANT = "00000000-0000-0000-0000-0000000000aa", "11111111-1111-1111-1111-1111111111bb"
@@ -74,148 +74,29 @@ class _Az:
         return [" ".join(c[1:4]) for c in self.calls]
 
 
-# ── setup-azure ─────────────────────────────────────────────────────────────────────────────
-
-
-def _setup(*argv, run=None, slept=None):
-    args = cli.parser().parse_args(["setup-azure", "--resource-group", "rg-redberry", "--location", "westeurope",
-                                    "--account", "acmeruns", *argv])
-    lines: list[str] = []
-    rc = azure_setup.cmd_setup_azure(args, out=lines.append, run=run,
-                                     sleep=(slept.append if slept is not None else lambda s: None))
-    return rc, "\n".join(lines)
-
-
-def test_setup_azure_prints_the_commands_for_a_vercel_project(tmp_path):
-    rc, out = _setup("--vercel-team", "acme", "--vercel-project", "acme-support", "--repo", str(tmp_path), "--print")
-    assert rc == 0
-    assert ("az storage account create --name acmeruns --resource-group rg-redberry --location westeurope --kind "
-            "StorageV2 --min-tls-version TLS1_2 --https-only true --allow-blob-public-access false "
-            "--allow-shared-key-access false") in out
-    assert "az storage container-rm create --storage-account acmeruns --resource-group rg-redberry --name redberry-runs" in out
-    assert "immutability-policy create --account-name acmeruns --resource-group rg-redberry " \
-           "--container-name redberry-runs --period 2557 --allow-protected-append-writes false" in out
-    assert "immutability-policy lock" not in out                                    # unlocked by default
-    assert ('az role assignment create --assignee-object-id "${PRINCIPAL_ID}" --assignee-principal-type '
-            'ServicePrincipal --role \'Storage Blob Data Contributor\' --scope /subscriptions/"${SUBSCRIPTION_ID}"'
-            '/resourceGroups/rg-redberry/providers/Microsoft.Storage/storageAccounts/acmeruns/blobServices/default/'
-            'containers/redberry-runs') in out
-    assert ("az identity federated-credential create --name vercel-acme-acme-support --identity-name "
-            "redberry-trace-writer --resource-group rg-redberry --issuer https://oidc.vercel.com/acme --subject "
-            "owner:acme:project:acme-support:environment:production --audiences https://vercel.com/acme") in out
-    assert f"# then: the container {CONTAINER} is ready for its writer" in out
-    assert not (tmp_path / ".redberry").exists()
-
-
-def test_setup_azure_retention_is_whole_days(tmp_path):
-    with pytest.raises(azure_setup.SetupError, match="shortest immutability period is one day"):
-        _setup("--vercel-team", "acme", "--vercel-project", "p", "--retention", "30m", "--print")
-    with pytest.raises(azure_setup.SetupError, match="--retention"):
-        _setup("--vercel-team", "acme", "--vercel-project", "p", "--retention", "forever", "--print")
-    _rc, out = _setup("--vercel-team", "acme", "--vercel-project", "p", "--retention", "1d", "--print")
-    assert "--period 1 " in out
-    assert azure_setup.retention_days("7y") == 2557 and azure_setup.retention_days("90d") == 90
-
-
-def test_setup_azure_runs_them_and_records_what_it_made(tmp_path):
-    run, slept = _Az(unseen=2, exists=("container-rm create",)), []
-    rc, out = _setup("--vercel-team", "acme", "--vercel-project", "acme-support", "--repo", str(tmp_path), run=run,
-                     slept=slept)
-    assert rc == 0 and "already there" in out
-    assert slept == [5, 5] and out.count("not visible yet") == 2                # the new identity, twice
-    assert [k for k in run.kinds() if not k.startswith("provider ")] == ["account show -o", "group exists --name",
-                           "group create --name", "storage account create", "storage container-rm create",
-                           "storage container immutability-policy", "identity create --name",
-                           "role assignment create", "role assignment create", "role assignment create",
-                           "identity federated-credential create"]
-    assert all(c[0] == "az" for c in run.calls)
-    record = json.loads((tmp_path / ".redberry" / "azure.json").read_text())
-    assert record["container_url"] == CONTAINER and record["tenant_id"] == TENANT
-    assert record["identity"] == {"name": "redberry-trace-writer", "id": IDENTITY_ID, "client_id": CLIENT,
-                                  "principal_id": PRINCIPAL}
-    assert record["oidc_subject"] == "owner:acme:project:acme-support:environment:production"
-    assert record["retention_days"] == 2557 and record["locked"] is False
-    assert f"Next: the container {CONTAINER} is ready for its writer" in out
-    assert "lock it (irreversible)" in out
-
-
-def test_setup_azure_locks_only_when_told(tmp_path):
-    run = _Az(group=True)
-    rc, out = _setup("--function-app", "acme-agents", "--app-resource-group", "rg-apps", "--lock",
-                     "--repo", str(tmp_path), run=run)
-    assert rc == 0 and "group create --name" not in run.kinds()                 # the group was there
-    lock = next(c for c in run.calls if "lock" in c)
-    assert lock[lock.index("--if-match") + 1] == '"8d9f"'
-    assign = next(c for c in run.calls if c[1:3] == ["functionapp", "identity"])
-    assert assign[assign.index("--identities") + 1] == IDENTITY_ID and assign[assign.index("--name") + 1] == "acme-agents"
-    assert assign[assign.index("--resource-group") + 1] == "rg-apps"
-    assert not any("federated-credential" in c for c in run.calls)
-    assert f"Next: the container {CONTAINER} is ready for its writer" in out
-    assert json.loads((tmp_path / ".redberry" / "azure.json").read_text())["locked"] is True
-
-
-def test_setup_azure_evidence_makes_three_containers_one_immutable(tmp_path):
-    run = _Az()
-    rc, out = _setup("--evidence", "--repo", str(tmp_path), "--reader-for-me", run=run)
-    assert rc == 0
-    made = [c[c.index("--name") + 1] for c in run.calls if "container-rm" in c]
-    assert made == ["valp-evidence", "valp-payloads", "valp-index"]
-    immutable = [c[c.index("--container-name") + 1] for c in run.calls if "immutability-policy" in c]
-    assert immutable == ["valp-evidence"]                          # the sink rewrites the index, erases payloads
-    (props,) = [c for c in run.calls if "blob-service-properties" in c]
-    assert props[props.index("--enable-delete-retention") + 1] == "false"
-    assert props[props.index("--enable-versioning") + 1] == "false"
-    writers = [c for c in run.calls if "Storage Blob Data Contributor" in c]
-    readers = [c for c in run.calls if "Storage Blob Data Reader" in c]
-    assert len(writers) == 3 and len(readers) == 3
-    assert all(c[c.index("--assignee-principal-type") + 1] == "User" for c in readers)
-    url = "https://acmeruns.blob.core.windows.net/valp-"
-    assert (f"the containers {url}evidence, {url}payloads and {url}index are ready (identity {CLIENT}, "
-            f"tenant {TENANT})") in out
-    assert "az vm identity assign" in out and "redberry-valp-sink" in json.dumps(
-        json.loads((tmp_path / ".redberry" / "azure.json").read_text()))
-    with pytest.raises(azure_setup.SetupError, match="drop --container"):
-        _setup("--evidence", "--container", "mine", "--print")
-
-
-def test_setup_azure_needs_exactly_one_target_and_valid_names(tmp_path):
-    with pytest.raises(azure_setup.SetupError, match="one of: --vercel-team"):
-        _setup("--print")
-    with pytest.raises(azure_setup.SetupError, match="one of"):
-        _setup("--evidence", "--function-app", "x", "--print")
-    with pytest.raises(azure_setup.SetupError, match="--vercel-project"):
-        _setup("--vercel-team", "acme", "--repo", str(tmp_path), "--print")
-    args = cli.parser().parse_args(["setup-azure", "--resource-group", "g", "--location", "l", "--account",
-                                    "Bad_Name", "--evidence", "--print"])
-    with pytest.raises(azure_setup.SetupError, match="--account"):
-        azure_setup.cmd_setup_azure(args, out=lambda _m: None)
-
-
-def test_setup_azure_stops_on_a_real_failure(tmp_path):
-    with pytest.raises(azure_setup.SetupError, match="storage account create failed: ERROR: boom"):
-        _setup("--evidence", "--repo", str(tmp_path), run=_Az(fail="storage account create"))
-    assert not (tmp_path / ".redberry" / "azure.json").exists()
+# ── the az CLI ──────────────────────────────────────────────────────────────────────────────
 
 
 def test_az_binary_falls_back_to_the_venv(tmp_path, monkeypatch):
     monkeypatch.delenv("AZ")
-    monkeypatch.setattr(azure_setup.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(_cloud.shutil, "which", lambda _n: None)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    assert azure_setup.az_binary() == "az"
+    assert _cloud.az_binary() == "az"
     venv = tmp_path / ".azure-cli-venv" / "bin" / "az"
     venv.parent.mkdir(parents=True)
     venv.write_text("")
-    assert azure_setup.az_binary() == str(venv)
+    assert _cloud.az_binary() == str(venv)
     monkeypatch.setenv("AZ", "/opt/az")
-    assert azure_setup.az_binary() == "/opt/az"
+    assert _cloud.az_binary() == "/opt/az"
 
 
-def test_container_urls():
-    assert azure_setup.container_url(CONTAINER + "/") == CONTAINER
-    for bad in (CONTAINER + "?sv=2024&sig=x", "https://acme.blob.core.windows.net", "gs://bucket",
-                "https://Acme.blob.core.windows.net/runs"):
-        with pytest.raises(azure_setup.SetupError):
-            azure_setup.container_url(bad)
+
+
+def test_a_missing_az_cli_says_how_to_install_it():
+    def run(cmd, **kw):
+        raise FileNotFoundError(cmd[0])
+    with pytest.raises(_cloud.SetupError, match="Azure CLI \\(az\\) is not installed"):
+        _cloud.az(run, ["az", "account", "show"])
 
 
 # ── connect --platform azure-functions: Node.js ─────────────────────────────────────────────
@@ -533,22 +414,3 @@ def test_python_names_a_function_the_reader_cannot_see(api, tmp_path):
     assert rc == 0 and 'redberry_sdk.init(agent="concierge")' in text
     assert "flush_after" not in text and "ask is async" in out              # flush_after wraps plain functions
     assert (repo / "requirements.txt").read_text() == azf.PY_REQUIREMENT + "\n"
-def test_setup_registers_missing_resource_providers():
-    # A new subscription has Microsoft.KeyVault and others unregistered; setup registers them first.
-    calls = []
-
-    class R:
-        def __init__(self, stdout="", rc=0):
-            self.stdout, self.returncode, self.stderr = stdout, rc, ""
-
-    def run(cmd, **kw):
-        calls.append(cmd)
-        if cmd[1:3] == ["provider", "show"]:
-            return R("Registered" if cmd[4] == "Microsoft.Storage" else "NotRegistered")
-        return R()
-
-    out = []
-    azure_setup.ensure_providers(run, azure_setup.PROVIDERS + ("Microsoft.KeyVault",), [], out.append)
-    registered = [c[4] for c in calls if c[1:3] == ["provider", "register"]]
-    assert "Microsoft.Storage" not in registered and "Microsoft.KeyVault" in registered
-    assert all("--wait" in c for c in calls if c[1:3] == ["provider", "register"])

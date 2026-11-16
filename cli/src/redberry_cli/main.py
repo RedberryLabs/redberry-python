@@ -22,10 +22,6 @@ Each shows the diff and asks before it changes a file (``--yes`` applies without
 ``--extract`` writes the agent's manifest (``.redberry/manifest.json``) with ``redberry-extract`` when that
 is installed.
 
-**setup-azure** and **setup-aws** make an Azure Blob container (immutable) or an S3 bucket (Object Lock)
-that a function app or Lambda function writes to as its own identity, with no key
-(``redberry_cli.azure_setup``, ``redberry_cli.aws_setup``).
-
 The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Every prompt has a
 flag (``--name``, ``--yes``), and ``--json`` prints the result for scripts and coding assistants.
 """
@@ -48,9 +44,8 @@ from pathlib import Path
 from typing import Any
 
 from redberry_cli import _channel
+from redberry_cli import _cloud
 from redberry_cli import _edits
-from redberry_cli import aws_setup
-from redberry_cli import azure_setup
 from redberry_cli._version import __version__
 
 DEFAULT_API = _channel.APIS[_channel.CHANNEL]
@@ -173,7 +168,7 @@ def cmd_logout(a, out=print) -> int:
     try:
         status, body = call(api, "POST", "/api/cli/logout", token=s["token"])
         revoked = status in (204, 401)  # 401: already ended at Redberry
-    except CliError as e:
+    except (CliError, _cloud.SetupError) as e:
         status, body, revoked = None, {"detail": str(e)}, False
     _save_credentials(creds)
     if revoked:
@@ -306,62 +301,6 @@ def parser() -> argparse.ArgumentParser:
     aw.add_argument("--function", help="the Lambda function's name")
     aw.add_argument("--region", help="the Lambda function's region (default: the aws CLI's)")
     con.set_defaults(fn=cmd_connect)
-    azs = sub.add_parser("setup-azure", help="an Azure Blob container (immutable) a Vercel project, a function app "
-                                             "or the bundle's sink writes to, as a managed identity (no key)")
-    azs.add_argument("--resource-group", required=True, help="the resource group (created if it is missing)")
-    azs.add_argument("--location", required=True, help="the Azure region, e.g. westeurope or eastus")
-    azs.add_argument("--account", required=True,
-                     help="the storage account (3-24 lowercase letters and digits; created, StorageV2, no shared keys)")
-    azs.add_argument("--container", help=f"the container (default {azure_setup.DEFAULT_CONTAINER}; not with "
-                                         "--evidence, which makes valp-evidence, valp-payloads and valp-index)")
-    azs.add_argument("--retention", default=azure_setup.DEFAULT_RETENTION,
-                     help="keep every blob at least this long: a number of days or years, e.g. 7y (default) or 1d "
-                          "for a test; Azure's shortest is one day")
-    azs.add_argument("--lock", action="store_true",
-                     help="lock the immutability policy (IRREVERSIBLE: for production, once the setup is proven)")
-    azs.add_argument("--identity", help="the user-assigned managed identity (default redberry-trace-writer; with "
-                                        "--evidence redberry-valp-sink)")
-    azs.add_argument("--subscription", help="the subscription (default: az's current one)")
-    azs.add_argument("--sku", help="the storage account's SKU (default: az's, Standard_RAGRS)")
-    who = azs.add_argument_group("what writes to it (one of)")
-    who.add_argument("--vercel-team", help="a Vercel project: the team's slug (OIDC issuer)")
-    who.add_argument("--vercel-project", help="with --vercel-team: the project's name (default: .vercel/project.json)")
-    who.add_argument("--function-app", help="an Azure function app: its name (the identity is assigned to it)")
-    who.add_argument("--app-resource-group", help="with --function-app: its resource group (default --resource-group)")
-    who.add_argument("--evidence", action="store_true",
-                     help="the bundle's VALP sink: three containers, the evidence one immutable")
-    azs.add_argument("--reader-for-me", action="store_true",
-                     help="also give you (the signed-in user) Storage Blob Data Reader on the container(s)")
-    azs.add_argument("--repo", default=".", help="the app's folder, for .vercel/project.json and the record")
-    azs.add_argument("--print", action="store_true", help="print the az commands instead of running them")
-    azs.set_defaults(fn=azure_setup.cmd_setup_azure)
-    aws = sub.add_parser("setup-aws", help="an S3 bucket (Object Lock) a Vercel project, a Lambda function or the "
-                                          "bundle's sink writes to, with no long-lived key")
-    aws.add_argument("--region", required=True, help="the bucket's region, e.g. eu-west-1")
-    aws.add_argument("--bucket", help="the bucket to create (s3://… or a name; S3 names are global); not with "
-                                      "--evidence")
-    aws.add_argument("--prefix", help="with --evidence: the buckets' prefix, e.g. acme-valp makes acme-valp-evidence, "
-                                      "acme-valp-payloads and acme-valp-index")
-    aws.add_argument("--retention", default=aws_setup.DEFAULT_RETENTION,
-                     help="Object Lock's default retention: a number of days or years, e.g. 7y (default) or 1d for a "
-                          "test")
-    aws.add_argument("--lock", action="store_true",
-                     help="COMPLIANCE mode (IRREVERSIBLE: nobody can delete an object before it expires); default "
-                          "GOVERNANCE")
-    aws.add_argument("--yes", action="store_true", help="with --lock: do not ask before locking")
-    aws.add_argument("--profile", help="the aws CLI profile to use (default: its default)")
-    who_aws = aws.add_argument_group("what writes to it (one of)")
-    who_aws.add_argument("--vercel-team", help="a Vercel project: the team's slug (OIDC issuer)")
-    who_aws.add_argument("--vercel-project", help="with --vercel-team: the project's name (default: .vercel/project.json)")
-    who_aws.add_argument("--role", help="the IAM role to create (default redberry-vercel-<project>, or with --evidence "
-                                        f"{aws_setup.SINK_ROLE})")
-    who_aws.add_argument("--function", help="a Lambda function: its name (its execution role gets the policy)")
-    who_aws.add_argument("--function-region", help="with --function: its region (default --region)")
-    who_aws.add_argument("--evidence", action="store_true",
-                         help="the bundle's VALP sink: three buckets, the evidence one with Object Lock")
-    aws.add_argument("--repo", default=".", help="the app's folder, for .vercel/project.json and the record")
-    aws.add_argument("--print", action="store_true", help="print the aws commands instead of running them")
-    aws.set_defaults(fn=aws_setup.cmd_setup_aws)
     return p
 
 
@@ -373,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         return args.fn(args)
-    except (CliError, aws_setup.SetupError) as e:
+    except (CliError, _cloud.SetupError) as e:
         print(f"redberry: {e}", file=sys.stderr)
         return 1
 

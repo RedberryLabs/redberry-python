@@ -44,7 +44,7 @@ from pathlib import Path
 
 from redberry_cli import _edits as ed
 from redberry_cli import _ts_tools as ts
-from redberry_cli import azure_setup, instrument
+from redberry_cli import _cloud, instrument
 from redberry_cli.main import CliError
 
 PLATFORM = "azure-functions"
@@ -111,8 +111,8 @@ def function_app(a, run) -> dict[str, str]:
     cmd = ["az", "functionapp", "show", "--name", a.app, "--resource-group", a.resource_group,
            *(["--subscription", a.subscription] if a.subscription else []), "-o", "json"]
     try:
-        r = azure_setup.az(run, cmd)
-    except azure_setup.SetupError as e:
+        r = _cloud.az(run, cmd)
+    except _cloud.SetupError as e:
         raise CliError(str(e)) from None
     if r.returncode != 0:
         raise CliError(f"cannot find the function app {a.app} in {a.resource_group} (az functionapp show): "
