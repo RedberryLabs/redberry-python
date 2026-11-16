@@ -22,7 +22,6 @@ Python 3.11 or later.
 | `frameworks` | LangChain, LlamaIndex, CrewAI, Haystack, OpenAI Agents SDK |
 | `vectordb` | Chroma, Pinecone, Qdrant, Weaviate |
 | `openai-agents` | the OpenAI Agents SDK itself, for its `valp.*` integration |
-| `hasher` | the optional per-run signing path |
 
 ## Quick start
 

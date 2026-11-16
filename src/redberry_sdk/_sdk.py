@@ -65,7 +65,7 @@ def _check_content_capture(config: Any, stacklevel: int = 3) -> None:
 
 def prepare_instrumentation(*, capture_content: bool = True, allow_missing_instrumentation: bool = False,
                             allow_content_capture_off: bool = False) -> None:
-    """Steps 1b, 1c and 2 of ``init()``, shared with ``redberry_sdk.hasher.register()``.
+    """Steps 1b, 1c and 2 of ``init()``.
 
     1b. Refuse to run unobserved. A library that imports while its instrumentation package does not
         (a venv rebuilt with a plain `pip install -e .` after the core/extras split) would otherwise
@@ -96,7 +96,7 @@ def prepare_instrumentation(*, capture_content: bool = True, allow_missing_instr
 
 
 def enable_instrumentation(*, allow_missing_instrumentation: bool = False) -> list[InstrumentorStatus]:
-    """Steps 3b, 4 and 4b of ``init()``, shared with ``redberry_sdk.hasher.register()``.
+    """Steps 3b, 4 and 4b of ``init()``.
 
     3b. Install the span-event bridge as the global LoggerProvider: opentelemetry-instrumentation-openai-v2
         >= 2.x emits message content via Logger.emit() (OTel Events API) rather than span.add_event(),

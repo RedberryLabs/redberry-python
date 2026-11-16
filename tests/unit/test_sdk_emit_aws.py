@@ -10,7 +10,7 @@ import pytest
 import requests
 
 from redberry_sdk import _emit, _emit_aws
-from redberry_sdk.hasher import _sigv4
+from redberry_sdk import _sigv4
 
 ACCT = "123456789012"
 REGION = "eu-west-1"
