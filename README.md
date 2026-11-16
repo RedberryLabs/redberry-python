@@ -96,6 +96,6 @@ trying every 5 minutes; as soon as the cause is fixed, records are sent again, w
 
 ## License
 
-Source-available under the [PolyForm Shield License 1.0.0](LICENSE): you may read, use, modify and redistribute this software, including commercially, for any purpose other than providing a product that competes with Redberry Labs. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Source-available under the [PolyForm Shield License 1.0.0](LICENSE): you may read, use, modify and redistribute this software, including commercially, for any purpose other than providing a product that competes with Redberry Labs Ltd. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 Versions 0.3.0 and earlier were released under the Apache License 2.0 and remain under it.
