@@ -76,7 +76,7 @@ def region_from_env(env: Mapping[str, str] | None = None) -> str:
 
 
 def _sigv4():
-    from .hasher import _sigv4  # lazily: only the AWS path needs it
+    from . import _sigv4  # lazily: only the AWS path needs it
     return _sigv4
 
 

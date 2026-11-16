@@ -1,9 +1,9 @@
 """AWS Signature Version 4, on the standard library (no AWS SDK).
 
-Only what the hasher's S3 store needs: a request signed in the ``Authorization`` header, with the
+Only what the AWS emit path needs (``_emit_aws``): a request signed in the ``Authorization`` header, with the
 payload's SHA-256 given (S3's ``x-amz-content-sha256``) or computed. Checked against AWS's published
 test vectors (the ``aws-sig-v4-test-suite`` and the S3 single-chunk examples) in
-``tests/unit/test_sdk_hasher_s3.py``.
+``tests/unit/test_sigv4.py``.
 
 https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
 """

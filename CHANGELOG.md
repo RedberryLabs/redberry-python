@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Removed: the in-process hasher.** `redberry_sdk.hasher` (`register()`, `with_redberry`, `RedberryProcessor`,
+  the stores and per-run signing) and the `hasher` extra are removed. The agent sends spans to the ingest service
+  of the customer's Redberry install, which stores, hashes and signs them there; no signing key runs in the
+  agent's process. `init()` is unchanged. Code that imports `redberry_sdk.hasher` must move to `init()`.
+
 ## 0.3.0
 
 - **Anthropic API version `2026-10-21`.** That version, the default from the Python `anthropic` 2.0.0, rejects

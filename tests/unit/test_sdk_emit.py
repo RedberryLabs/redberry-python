@@ -423,14 +423,6 @@ def test_init_requires_a_name_or_an_id(init_env):
         redberry_sdk.init()
 
 
-def test_init_uses_no_hasher(init_env, no_metadata, monkeypatch):
-    import sys
-    for name in [m for m in sys.modules if m.startswith("redberry_sdk.hasher")]:
-        monkeypatch.delitem(sys.modules, name)
-    redberry_sdk.init(agent="bot")
-    assert not any(m.startswith("redberry_sdk.hasher") for m in sys.modules)
-
-
 # ── 401/403 while a new grant propagates ─────────────────────────────────────────────────────────
 
 @pytest.fixture
