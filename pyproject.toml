@@ -7,7 +7,7 @@ name = "redberry-sdk"
 dynamic = ["version"]
 description = "Records an AI agent's model and tool calls with OpenTelemetry and sends them to the customer's Redberry install."
 readme = "README.md"
-license = "Apache-2.0"
+license = "LicenseRef-PolyForm-Shield-1.0.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Redberry Labs" }]
 requires-python = ">=3.11"

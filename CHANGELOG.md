@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Licence.** From this release the package is licensed under the PolyForm Shield License 1.0.0, replacing the
+  Apache License 2.0. Versions 0.3.0 and earlier remain under the Apache License 2.0. See `LICENSE` and `NOTICE`.
 - **Removed: the in-process hasher.** `redberry_sdk.hasher` (`register()`, `with_redberry`, `RedberryProcessor`,
   the stores and per-run signing) and the `hasher` extra are removed. The agent sends spans to the ingest service
   of the customer's Redberry install, which stores, hashes and signs them there; no signing key runs in the
