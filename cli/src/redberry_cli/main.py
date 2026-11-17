@@ -29,7 +29,8 @@ PATH, else one installed with uv into ``~/.redberry/extractor`` once the company
 **upgrade** — the company's installs and whether each runs Redberry's latest release; with an id, upgrades that
 install by running its cloud's install script here with ``--upgrade`` (``redberry_cli.upgrade``).
 
-The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Every prompt has a
+The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Every command that calls it
+first prints which environment that is (``Redberry prod``, ``Redberry dev`` or ``Redberry custom``) on stderr. Every prompt has a
 flag (``--name``, ``--yes``), and ``--json`` prints the result for scripts and coding assistants.
 """
 
@@ -105,6 +106,12 @@ def session(api: str) -> dict[str, Any]:
     return s
 
 
+def environment(api: str) -> str:
+    """``prod``, ``dev``, or ``custom`` for any other address."""
+    api = api.rstrip("/")
+    return next((name for name, url in _channel.APIS.items() if url == api), "custom")
+
+
 def _detail(body: dict[str, Any]) -> str:
     return str(body.get("detail") or body.get("error") or body)
 
@@ -120,7 +127,6 @@ def _cli_version() -> str:
 def cmd_login(a, out=print, sleep=time.sleep) -> int:
     api = a.api.rstrip("/")
     machine = _machine_name()
-    out(f"Redberry: {api}")
     status, start = call(api, "POST", "/api/cli/device/start", {"machine": machine} if machine else {})
     if status == 404:
         raise CliError(f"{api} doesn't support `redberry login`: check --api / REDBERRY_API_URL")
@@ -480,6 +486,8 @@ def main(argv: list[str] | None = None) -> int:
     with contextlib.suppress(AttributeError, ValueError):
         sys.stdout.reconfigure(line_buffering=True)
     args = parser().parse_args(argv)
+    if args.cmd != "connect" or args.extract:  # a command that calls the API says which one, on stderr
+        print(f"Redberry {environment(args.api)} ({args.api.rstrip('/')})", file=sys.stderr)
     try:
         return args.fn(args)
     except (CliError, _cloud.SetupError) as e:

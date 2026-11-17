@@ -277,3 +277,18 @@ def test_instrument_follows_the_installed_anthropic_major(tmp_path, monkeypatch,
     (tmp_path / "agent.py").write_text("import anthropic\nanthropic.Anthropic().messages.create(model='m', messages=[])\n")
     instrument.set_temperature(tmp_path)
     assert ('"temperature": 1.0' in (tmp_path / "agent.py").read_text()) is added
+
+
+@pytest.mark.parametrize("api, label", [("https://api.redberry.sbs", "Redberry prod (https://api.redberry.sbs)"),
+                                        ("https://api-dev.redberry.sbs/", "Redberry dev (https://api-dev.redberry.sbs)"),
+                                        ("http://127.0.0.1:9", "Redberry custom (http://127.0.0.1:9)")])
+def test_every_api_command_says_which_environment_on_stderr(api, label, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert cli.main(["--api", api, "whoami"]) == 1  # not signed in: still says where it would have gone
+    err = capsys.readouterr().err
+    assert err.splitlines()[0] == label and "not signed in" in err
+
+
+def test_bare_connect_calls_no_api_and_names_none(capsys):
+    assert cli.main(["--api", "https://api-dev.redberry.sbs", "connect", "--json"]) == 0
+    assert "Redberry dev" not in capsys.readouterr().err

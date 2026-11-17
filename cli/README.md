@@ -26,7 +26,8 @@ or `pipx install redberry-cli`. Python 3.11 or later.
 | `redberry connect --platform vercel` | Wires a Next.js app on the Vercel AI SDK, and sets the project's `REDBERRY_*` variables (below). |
 | `redberry upgrade` | Your company's Redberry installs and whether each runs the latest release; `redberry upgrade <id>` upgrades one (below). |
 
-The API is `https://api.redberry.sbs`; `--api` or `REDBERRY_API_URL` selects another. `--json` prints a
+The API is `https://api.redberry.sbs`; `--api` or `REDBERRY_API_URL` selects another. Every command that calls it
+first prints which environment it is using on stderr (`Redberry prod`, `Redberry dev` or `Redberry custom`). `--json` prints a
 command's result for scripts.
 
 ## What `connect --platform` does
