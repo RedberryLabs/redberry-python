@@ -206,6 +206,20 @@ def test_connect_writes_the_app_and_sets_the_production_env(app, tmp_path):
     assert rc == 0 and {p: p.read_text() for p in before} == before
 
 
+def test_several_routes_are_one_agent_and_it_says_so(app):
+    note = ("This app has model calls in 2 routes (/api/chat, /api/refund); they are recorded and priced as one "
+            "agent, acme-support. To price agents separately, deploy them as separate Vercel projects.")
+    rc, out = _connect(app, "--yes", "--no-env", run=_Run())
+    assert rc == 0 and note in out
+    rc, out = _connect(app, "--yes", "--no-env", "--json", run=_Run())
+    assert rc == 0 and json.loads(out)["routes_note"] == note
+    shutil.rmtree(app / "app" / "api" / "refund")                    # one route: nothing to say
+    rc, out = _connect(app, "--yes", "--no-env", "--json", run=_Run())
+    assert rc == 0 and json.loads(out)["routes_note"] is None
+    rc, out = _connect(app, "--yes", "--no-env", run=_Run())
+    assert rc == 0 and "priced as one agent" not in out
+
+
 def test_connect_asks_first_and_changes_nothing_when_not_told_yes(app, tmp_path):
     before = {p: p.read_text() for p in app.rglob("*") if p.is_file()}
     asked = []
