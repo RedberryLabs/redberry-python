@@ -3,7 +3,7 @@
 The fake holds the state the API's /api/cli routes do: a device code someone approves and a session.
 Checked: the device-code sign-in (reporting the machine's name) and where the session is kept (0600);
 logout revoking the session at Redberry; bare `connect` pointing at the portal's install command;
-`--extract` with no extractor installed; and `redberry_cli.instrument`'s edits.
+`--extract` with no extractor installed and no session; and `redberry_cli.instrument`'s edits.
 """
 
 from __future__ import annotations
@@ -158,14 +158,12 @@ def test_bare_connect_needs_no_sign_in_and_refuses_platform_flags(api, capsys):
         _main(api, "connect", "--platform", "foundry")
 
 
-def test_extract_without_the_extractor_says_to_write_the_manifest(api, repo, monkeypatch, capsys):
+def test_extract_without_the_extractor_or_a_session_says_to_log_in(api, repo, monkeypatch, capsys):
     monkeypatch.setattr(cli.shutil, "which", lambda name: None)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    ran = []
     assert _main(api, "connect", "--repo", str(repo), "--extract") == 1
     err = capsys.readouterr().err
-    assert "not available in this release" in err and "by hand" in err and "tools and model calls" in err
-    assert not ran and not (repo / ".redberry").exists()
+    assert "redberry login" in err and not (repo / ".redberry").exists()
 
 
 def test_extract_runs_the_extractor_when_it_is_installed(api, repo, monkeypatch, capsys):
