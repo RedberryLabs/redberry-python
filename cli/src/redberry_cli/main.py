@@ -22,8 +22,8 @@ serverless platforms:
 
 Each shows the diff and asks before it changes a file (``--yes`` applies without asking), sets
 ``temperature`` 1 on each model call it finds (pricing needs exactly 1), and never deploys.
-``--extract`` writes the agent's manifest (``.redberry/manifest.json``) with ``redberry-extract`` when that
-is installed.
+``--extract`` writes the agent's manifest (``.redberry/manifest.json``) with ``redberry-extract``: the one on
+PATH, else one installed with uv into ``~/.redberry/extractor`` once the company's extractor licence is accepted.
 
 The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Every prompt has a
 flag (``--name``, ``--yes``), and ``--json`` prints the result for scripts and coding assistants.
@@ -241,14 +241,10 @@ _EXTRACT_BACKENDS = (("ANTHROPIC_API_KEY", "Anthropic", []),
 
 
 def _extract_manifest(a, repo: Path, manifest: Path, name: str, out, run) -> None:
-    """No manifest: write one with redberry-extract and the LLM key already in the environment, when
-    redberry-extract is installed. It shows the agent's code to that provider, so this asks unless --extract
-    said yes."""
+    """No manifest: write one with redberry-extract and the LLM key already in the environment. It shows the
+    agent's code to that provider, so this asks unless --extract said yes. ``redberry-extract`` on PATH is used
+    as it is; otherwise it is installed for this machine (``_install_extractor``)."""
     _require_agent_code(repo)
-    if not shutil.which("redberry-extract"):
-        raise CliError(f"no manifest at {manifest}, and the extractor (redberry-extract) is not available in this "
-                       "release. Write the manifest by hand; the tools and model calls connect's own scan finds "
-                       "(redberry_cli._scan) are the place to start.")
     found = next(((env, who, extra) for env, who, extra in _EXTRACT_BACKENDS if os.environ.get(env)), None)
     how = f"redberry-extract --repo {repo} --agent-id {name}   (needs ANTHROPIC_API_KEY or OPENAI_API_KEY)"
     if found is None:
@@ -261,10 +257,150 @@ def _extract_manifest(a, repo: Path, manifest: Path, name: str, out, run) -> Non
         answer = input(f"No manifest yet. Describe this agent with your {env}? Its code is sent to {who}. [y/N] ")
         if answer.strip().lower() not in ("y", "yes"):
             raise CliError(f"no manifest. Write it yourself: {how}")
+    extractor = "redberry-extract" if shutil.which("redberry-extract") else str(_install_extractor(a, out, run))
     out(f"Describing the agent with {who} (redberry-extract) ...")
-    cmd = ["redberry-extract", "--repo", str(repo), "--agent-id", name, "--output", str(manifest), *extra]
+    cmd = [extractor, "--repo", str(repo), "--agent-id", name, "--output", str(manifest), *extra]
     if run(cmd, cwd=repo).returncode != 0 or not manifest.exists():
         raise CliError(f"redberry-extract did not write {manifest}; run it yourself: {how}")
+
+
+# ── the extractor: licence, download token, install with uv ─────────────────────────────────
+
+#: The private index's name for uv: its credential is read from ``UV_INDEX_<NAME>_USERNAME`` / ``_PASSWORD``.
+EXTRACTOR_INDEX = "redberry-extractor"
+_INDEX_ENV = "UV_INDEX_" + EXTRACTOR_INDEX.upper().replace("-", "_")
+_INSTALLED = ".redberry-installed"
+
+
+def _redberry_home() -> Path:
+    return Path(os.environ.get("REDBERRY_HOME") or Path.home() / ".redberry")
+
+
+def _extractor_root() -> Path:
+    return _redberry_home() / "extractor"
+
+
+def _extractor_exe(venv: Path) -> Path:
+    if os.name == "nt":
+        return venv / "Scripts" / "redberry-extract.exe"
+    return venv / "bin" / "redberry-extract"
+
+
+def _installed_extractor() -> Path | None:
+    """The install recorded as current, when it is complete."""
+    root = _extractor_root()
+    with contextlib.suppress(OSError):
+        venv = root / (root / "current").read_text(encoding="utf-8").strip()
+        if venv.parent == root and (venv / _INSTALLED).exists() and _extractor_exe(venv).exists():
+            return venv
+    return None
+
+
+def _install_extractor(a, out, run) -> Path:
+    """redberry-extract for this machine: after the company's extractor licence is accepted, installed with uv
+    from Redberry's private index into ``~/.redberry/extractor/<version>/`` (``$REDBERRY_HOME``), or the
+    install already there. The download token is short-lived and reaches uv only in its environment."""
+    try:
+        s = session(a.api)
+    except CliError:
+        raise CliError("the extractor is installed for your company: sign in first with `redberry login`, "
+                       "then run connect again") from None
+    _accept_licence(a, s, out)
+    venv = _installed_extractor()
+    if venv is not None:
+        return _extractor_exe(venv)
+    uv = shutil.which("uv")
+    if not uv:
+        raise CliError("installing the extractor needs uv: `curl -LsSf https://astral.sh/uv/install.sh | sh` "
+                       "or `pipx install uv`, then run connect again")
+    status, grant = call(a.api, "POST", "/api/cli/extractor-token", token=s["token"])
+    if status != 200:
+        raise CliError(_token_error(status, grant))
+    secret = grant["access_token"]
+    pin = str(grant.get("version_pin") or "").strip()
+    spec = "" if not pin else pin if pin[0] in "=<>!~" else f"=={pin}"
+    version = "".join(c for c in pin.lstrip("=<>!~ ") if c.isalnum() or c in ".-_+") or "latest"
+    root = _extractor_root()
+    venv = root / version
+    shutil.rmtree(venv, ignore_errors=True)  # an earlier install that did not finish
+    root.mkdir(parents=True, exist_ok=True)
+    out(f"Installing the Redberry extractor ({version}) into {venv} ...")
+    python = f"{sys.version_info.major}.{sys.version_info.minor}"
+    plain = {k: v for k, v in os.environ.items() if not k.startswith(_INDEX_ENV)}
+    # The token goes to uv in its environment only: never in argv (visible to other users in ps), a file or a log.
+    authed = {**plain, f"{_INDEX_ENV}_USERNAME": grant.get("username") or "oauth2accesstoken",
+              f"{_INDEX_ENV}_PASSWORD": secret}
+    private = f"{EXTRACTOR_INDEX}={grant['index_url']}"
+    steps = [
+        ([uv, "venv", str(venv), "--python", python], plain),
+        # the extractor itself from the private index alone, so a package of the same name elsewhere never wins
+        ([uv, "pip", "install", "--python", str(venv), "--no-deps", "--default-index", private,
+          f"redberry-extractor{spec}"], authed),
+        # then its dependencies: the private index first, PyPI as the default
+        ([uv, "pip", "install", "--python", str(venv), "--index-strategy", "first-index", "--index", private,
+          f"redberry-extractor[llm]{spec}"], authed),
+    ]
+    for cmd, env in steps:
+        try:
+            r = run(cmd, capture_output=True, text=True, env=env)
+        except OSError as e:
+            shutil.rmtree(venv, ignore_errors=True)
+            raise CliError(f"could not run uv: {str(e).replace(secret, '***')}") from None
+        if r.returncode != 0:
+            shutil.rmtree(venv, ignore_errors=True)
+            detail = ((r.stderr or "") + (r.stdout or "")).replace(secret, "***").strip()[-2000:]
+            raise CliError(f"installing the extractor failed (`{' '.join(cmd[1:3])}`): {detail}")
+    if not _extractor_exe(venv).exists():
+        shutil.rmtree(venv, ignore_errors=True)
+        raise CliError(f"the extractor installed without its command ({_extractor_exe(venv).name})")
+    (venv / _INSTALLED).write_text(version + "\n", encoding="utf-8")
+    (root / "current").write_text(version + "\n", encoding="utf-8")
+    return _extractor_exe(venv)
+
+
+def _accept_licence(a, s: dict[str, Any], out) -> None:
+    """The Redberry Extractor Licence, accepted once per company (and again for a new version). ``--yes`` does
+    not accept it: without a terminal, ``--accept-extractor-licence`` does."""
+    status, lic = call(a.api, "GET", "/api/cli/extractor-licence", token=s["token"])
+    if status == 401:
+        raise CliError("your Redberry session has ended: run `redberry login`")
+    if status != 200:
+        raise CliError(f"could not read the extractor licence ({status}): {_detail(lic)}")
+    if lic.get("accepted"):
+        return
+    company = s.get("company") or {}
+    company = company.get("name") or company.get("id") or "your company"
+    version = lic.get("version")
+    if not getattr(a, "accept_extractor_licence", False):
+        if not sys.stdin.isatty() or a.json:
+            raise CliError(f"the Redberry Extractor Licence (version {version}) is not yet accepted for {company}. "
+                           "Read it in the Redberry portal or run connect in a terminal, and pass "
+                           "--accept-extractor-licence to accept it without a prompt (--yes does not)")
+        out(lic.get("text") or "")
+        answer = input(f"Accept the Redberry Extractor Licence for {company} (version {version})? [y/N] ")
+        if answer.strip().lower() not in ("y", "yes"):
+            raise CliError("the extractor licence was not accepted; write the manifest by hand instead")
+    status, body = call(a.api, "POST", "/api/cli/extractor-licence", {"version": version}, token=s["token"])
+    if status == 409:
+        raise CliError("the extractor licence changed while you read it: run connect again to see the new version")
+    if status != 200:
+        raise CliError(f"could not accept the extractor licence ({status}): {_detail(body)}")
+    out(f"Accepted the Redberry Extractor Licence (version {version}) for {company}")
+
+
+def _token_error(status: int, body: dict[str, Any]) -> str:
+    detail = body.get("detail")
+    message = detail.get("message") if isinstance(detail, dict) else None
+    if status == 401:
+        return "your Redberry session has ended: run `redberry login`"
+    if status == 403:
+        return ("the extractor licence is not accepted for your company"
+                + (f" ({message})" if message else "") + ": run connect again to accept it")
+    if status == 429:
+        return "too many extractor downloads for now: try again in a few minutes"
+    if status == 502:
+        return "Redberry could not issue an extractor download token right now: try again shortly"
+    return f"could not get an extractor download token ({status}): {message or _detail(body)}"
 
 
 def _require_agent_code(repo: Path) -> None:
@@ -301,8 +437,10 @@ def parser() -> argparse.ArgumentParser:
     con.add_argument("--manifest", default=".redberry/manifest.json", help="relative to --repo, or absolute")
     con.add_argument("--yes", action="store_true", help="apply the changes without asking")
     con.add_argument("--extract", action="store_true",
-                     help="with no manifest, write one with redberry-extract (when installed) and your LLM key, "
-                          "without asking")
+                     help="with no manifest, write one with redberry-extract and your LLM key, without asking "
+                          "(installs the extractor with uv when it is not on PATH)")
+    con.add_argument("--accept-extractor-licence", action="store_true",
+                     help="accept the Redberry Extractor Licence for your company without a prompt")
     con.add_argument("--json", action="store_true", help="print the result as JSON")
     az = con.add_argument_group("Azure Functions (--platform azure-functions: a Node.js v4 or Python v2 function app)")
     az.add_argument("--app", help="the function app's name")

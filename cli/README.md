@@ -83,8 +83,21 @@ to the form above when you run `connect` again.
 An app connected by an earlier version with the in-process hasher gets the new `instrumentation.ts`; remove the
 old variables it set (`REDBERRY_SIGNING_KEY`, `REDBERRY_PROJECT_TOKEN` and the others) from the project.
 
-`--extract` writes the agent's manifest (`.redberry/manifest.json`) with `redberry-extract` when that tool is
-installed. It is not part of this release; without it, write the manifest by hand.
+## `connect --extract`: the agent's manifest
+
+`--extract` writes the agent's manifest (`.redberry/manifest.json`) with `redberry-extract` and the LLM key already
+in your environment (`ANTHROPIC_API_KEY`, else `OPENAI_API_KEY`). The agent's code is sent only to that key's
+provider. Without `--extract`, `connect` asks first.
+
+A `redberry-extract` on PATH is used as it is. Otherwise `connect` installs it:
+
+- It needs `redberry login` (the extractor is licensed to your company) and
+  [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh` or `pipx install uv`).
+- The Redberry Extractor Licence is shown and accepted once per company, and again when a new version is
+  published. `--yes` does not accept it; in a script or with `--json`, pass `--accept-extractor-licence`.
+- It is installed with uv into its own environment in `~/.redberry/extractor/<version>/` (`$REDBERRY_HOME`
+  overrides `~/.redberry`), from Redberry's package index with a short-lived download token that is passed to uv
+  in its environment only. Later runs reuse that install.
 
 ## License
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (0.2.0)
+
+- `connect --extract` installs the Redberry extractor when `redberry-extract` is not on PATH. It needs a signed-in
+  session (`redberry login`) and [uv](https://docs.astral.sh/uv/). The company's Redberry Extractor Licence is
+  shown and accepted once per company (and again for a new licence version); `--yes` does not accept it, and
+  without a terminal (or with `--json`) the new `--accept-extractor-licence` flag does. The CLI then fetches a
+  short-lived download token and installs `redberry-extractor[llm]` with uv into its own environment in
+  `~/.redberry/extractor/<version>/` (`$REDBERRY_HOME` overrides `~/.redberry`); the token reaches uv only in its
+  environment, never on the command line, in a file or in an error message. Later runs reuse that install
+  without a new token. A `redberry-extract` already on PATH is still used as it is.
+
 ## 0.1.0 (2026-11-17)
 
 - First release of `redberry-cli`, the `redberry` command: `login`, `whoami`, `logout` and
