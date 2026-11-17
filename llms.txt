@@ -1,0 +1,20 @@
+# Redberry
+
+> Redberry records an AI agent's model and tool calls with OpenTelemetry, keeps a tamper-evident evidence chain for each agent in the customer's own cloud account, and prices the agent's risk. The agent sends its records to the customer's Redberry install, never to Redberry directly. Python agents use `redberry-sdk`; Node.js agents use `@redberrylabs/otel`; the `redberry` command (`redberry-cli`) wires agents on AWS Lambda, Azure Functions and Vercel.
+
+To connect an agent, follow the step-by-step guide. It is written so that a coding agent can carry it out in the agent's repository.
+
+## Guides
+
+- [Connect an agent to Redberry](https://raw.githubusercontent.com/RedberryLabs/redberry-python/main/docs/connect-an-agent.md): decide the path, install, add the SDK, check it works.
+
+## Packages
+
+- [redberry-sdk on PyPI](https://pypi.org/project/redberry-sdk/): the Python SDK. README: https://raw.githubusercontent.com/RedberryLabs/redberry-python/main/README.md
+- [redberry-cli on PyPI](https://pypi.org/project/redberry-cli/): the `redberry` command. README: https://raw.githubusercontent.com/RedberryLabs/redberry-python/main/cli/README.md
+- [@redberrylabs/otel on npm](https://www.npmjs.com/package/@redberrylabs/otel): the Node.js SDK and exporter.
+
+## Optional
+
+- [Changelog, redberry-sdk](https://raw.githubusercontent.com/RedberryLabs/redberry-python/main/CHANGELOG.md)
+- [Changelog, redberry-cli](https://raw.githubusercontent.com/RedberryLabs/redberry-python/main/cli/CHANGELOG.md)
