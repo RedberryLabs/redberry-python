@@ -1,10 +1,21 @@
 # Changelog
 
-## Unreleased (0.2.0)
+## Unreleased (0.3.0)
 
+- New `redberry upgrade`. Without an id it lists your company's Redberry installs: where each is, the release it
+  last reported, and whether a newer one is out ("update available"), with the command that upgrades it. With an
+  id (`redberry upgrade <id>`) it upgrades that install: it fetches the cloud's install script from the Redberry
+  portal and runs it here with `--upgrade`, through `gcloud`, `aws` or `az` as signed in on this machine. The
+  script keeps every choice the install was made with and needs no install token. It asks first (`--yes` does
+  not); an install that is up to date is left alone unless `--force`; a stopped or revoked install is not
+  upgraded. On AWS it checks that the `aws` CLI is signed in to the install's account first. `--json` prints the
+  list.
 - `connect --platform vercel` says when model calls are in more than one App Router route: the app is recorded
   and priced as one agent, and agents priced separately need separate Vercel projects. `--json` carries the
   same text as `routes_note` (null for a single route).
+
+## 0.2.0 (2026-11-17)
+
 - `connect --extract` installs the Redberry extractor when `redberry-extract` is not on PATH. It needs a signed-in
   session (`redberry login`) and [uv](https://docs.astral.sh/uv/). The company's Redberry Extractor Licence is
   shown and accepted once per company (and again for a new licence version); `--yes` does not accept it, and
