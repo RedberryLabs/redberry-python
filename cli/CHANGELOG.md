@@ -2,9 +2,9 @@
 
 ## 0.3.0 (2026-11-17)
 
-- Every command that calls the Redberry API first prints which environment it uses, on stderr:
-  `Redberry prod (https://api.redberry.sbs)`, `Redberry dev (https://api-dev.redberry.sbs)`, or `Redberry custom
-  (<address>)` for any other `--api` / `REDBERRY_API_URL`. `--json` output on stdout is unchanged.
+- Against any API other than production, every command that calls it first says so, on stderr:
+  `Redberry dev (https://api-dev.redberry.sbs)`, or `Redberry custom (<address>)` for any other `--api` /
+  `REDBERRY_API_URL`. Against production nothing is added. `--json` output on stdout is unchanged.
 - New `redberry upgrade`. Without an id it lists your company's Redberry installs: where each is, the release it
   last reported, and whether a newer one is out ("update available"), with the command that upgrades it. With an
   id (`redberry upgrade <id>`) it upgrades that install: it fetches the cloud's install script from the Redberry

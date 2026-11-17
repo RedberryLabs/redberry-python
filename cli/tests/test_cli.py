@@ -279,14 +279,19 @@ def test_instrument_follows_the_installed_anthropic_major(tmp_path, monkeypatch,
     assert ('"temperature": 1.0' in (tmp_path / "agent.py").read_text()) is added
 
 
-@pytest.mark.parametrize("api, label", [("https://api.redberry.sbs", "Redberry prod (https://api.redberry.sbs)"),
-                                        ("https://api-dev.redberry.sbs/", "Redberry dev (https://api-dev.redberry.sbs)"),
+@pytest.mark.parametrize("api, label", [("https://api-dev.redberry.sbs/", "Redberry dev (https://api-dev.redberry.sbs)"),
                                         ("http://127.0.0.1:9", "Redberry custom (http://127.0.0.1:9)")])
-def test_every_api_command_says_which_environment_on_stderr(api, label, tmp_path, monkeypatch, capsys):
+def test_off_production_every_api_command_says_where_on_stderr(api, label, tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     assert cli.main(["--api", api, "whoami"]) == 1  # not signed in: still says where it would have gone
     err = capsys.readouterr().err
     assert err.splitlines()[0] == label and "not signed in" in err
+
+
+def test_production_adds_nothing(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert cli.main(["--api", "https://api.redberry.sbs", "whoami"]) == 1
+    assert capsys.readouterr().err == "redberry: not signed in: run `redberry login`\n"
 
 
 def test_bare_connect_calls_no_api_and_names_none(capsys):

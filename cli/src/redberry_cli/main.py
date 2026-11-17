@@ -29,9 +29,9 @@ PATH, else one installed with uv into ``~/.redberry/extractor`` once the company
 **upgrade** — the company's installs and whether each runs Redberry's latest release; with an id, upgrades that
 install by running its cloud's install script here with ``--upgrade`` (``redberry_cli.upgrade``).
 
-The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Every command that calls it
-first prints which environment that is (``Redberry prod``, ``Redberry dev`` or ``Redberry custom``) on stderr. Every prompt has a
-flag (``--name``, ``--yes``), and ``--json`` prints the result for scripts and coding assistants.
+The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Off production, every command
+that calls it first says so on stderr (``Redberry dev (…)`` or ``Redberry custom (…)``). Every prompt has a flag
+(``--name``, ``--yes``), and ``--json`` prints the result for scripts and coding assistants.
 """
 
 from __future__ import annotations
@@ -486,8 +486,9 @@ def main(argv: list[str] | None = None) -> int:
     with contextlib.suppress(AttributeError, ValueError):
         sys.stdout.reconfigure(line_buffering=True)
     args = parser().parse_args(argv)
-    if args.cmd != "connect" or args.extract:  # a command that calls the API says which one, on stderr
-        print(f"Redberry {environment(args.api)} ({args.api.rstrip('/')})", file=sys.stderr)
+    env = environment(args.api)
+    if env != "prod" and (args.cmd != "connect" or args.extract):  # off production, say where, on stderr
+        print(f"Redberry {env} ({args.api.rstrip('/')})", file=sys.stderr)
     try:
         return args.fn(args)
     except (CliError, _cloud.SetupError) as e:
