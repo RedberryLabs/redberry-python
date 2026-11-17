@@ -2,6 +2,9 @@
 
 ## Unreleased (0.2.0)
 
+- `connect --platform vercel` says when model calls are in more than one App Router route: the app is recorded
+  and priced as one agent, and agents priced separately need separate Vercel projects. `--json` carries the
+  same text as `routes_note` (null for a single route).
 - `connect --extract` installs the Redberry extractor when `redberry-extract` is not on PATH. It needs a signed-in
   session (`redberry login`) and [uv](https://docs.astral.sh/uv/). The company's Redberry Extractor Licence is
   shown and accepted once per company (and again for a new licence version); `--yes` does not accept it, and

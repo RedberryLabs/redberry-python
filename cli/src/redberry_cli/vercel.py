@@ -283,6 +283,15 @@ def _given(a, environ: dict[str, str]) -> dict[str, str]:
     return given
 
 
+def multi_route_note(agent: str, routes: list[Route]) -> str | None:
+    """When more than one route calls a model: they are one agent (one name per app), so say so."""
+    if len(routes) < 2:
+        return None
+    return (f"This app has model calls in {len(routes)} routes ({', '.join(r.path for r in routes)}); they are "
+            f"recorded and priced as one agent, {agent}. To price agents separately, deploy them as separate "
+            "Vercel projects.")
+
+
 def cmd_connect(a, out=print, run=None, ask=None, environ=None) -> int:
     import os
     import shutil
@@ -312,6 +321,9 @@ def cmd_connect(a, out=print, run=None, ask=None, environ=None) -> int:
         "Vercel project: not linked here (.vercel/project.json; `vercel link` links it)")
     say(f"  agent {agent}: {', '.join(r.path for r in routes)}")
     say(f"  tools: {', '.join(t.name for t in tools) or 'none found by the static reader'}")
+    routes_note = multi_route_note(agent, routes)
+    if routes_note:
+        say(routes_note)
 
     edits, edit_notes = plan_edits(repo, pkg, pkg_text, agent, routes)
     notes += edit_notes
@@ -354,7 +366,8 @@ def cmd_connect(a, out=print, run=None, ask=None, environ=None) -> int:
     result = {
         "platform": PLATFORM, "vercel_project": description.get("vercel_project"), "agent_name": agent,
         "routes": description["routes"], "edited": [str(e.path.relative_to(repo)) for e in edits],
-        "env": env, "env_set": env_set, "notes": notes, "next": [install, "commit and deploy"],
+        "env": env, "env_set": env_set, "notes": notes, "routes_note": routes_note,
+        "next": [install, "commit and deploy"],
     }
     if a.json:
         out(json.dumps(result, indent=2))
@@ -381,4 +394,4 @@ def cmd_connect(a, out=print, run=None, ask=None, environ=None) -> int:
 
 
 __all__ = ["DEPENDENCIES", "INSTRUMENTATION", "agent_routes", "check_app", "cmd_connect", "env_values",
-           "linked_project", "plan_edits", "read_env_file", "set_vercel_env"]
+           "linked_project", "multi_route_note", "plan_edits", "read_env_file", "set_vercel_env"]
