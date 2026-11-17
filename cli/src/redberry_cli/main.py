@@ -1,4 +1,5 @@
-"""``redberry login | whoami | logout | connect``: sign in, then wire an agent to the customer's Redberry install.
+"""``redberry login | whoami | logout | connect | upgrade``: sign in, then wire an agent to the customer's Redberry
+install.
 
 **login** — a device-code sign-in, as ``gh auth login`` does it. The CLI prints a short code and a link;
 someone signed in to the Redberry portal for your company opens it and approves the code (it need
@@ -24,6 +25,9 @@ Each shows the diff and asks before it changes a file (``--yes`` applies without
 ``temperature`` 1 on each model call it finds (pricing needs exactly 1), and never deploys.
 ``--extract`` writes the agent's manifest (``.redberry/manifest.json``) with ``redberry-extract``: the one on
 PATH, else one installed with uv into ``~/.redberry/extractor`` once the company's extractor licence is accepted.
+
+**upgrade** — the company's installs and whether each runs Redberry's latest release; with an id, upgrades that
+install by running its cloud's install script here with ``--upgrade`` (``redberry_cli.upgrade``).
 
 The API is ``$REDBERRY_API_URL`` or ``--api`` (default ``https://api.redberry.sbs``). Every prompt has a
 flag (``--name``, ``--yes``), and ``--json`` prints the result for scripts and coding assistants.
@@ -233,6 +237,12 @@ def cmd_connect(a, out=print, run=None) -> int:
     else:
         out(PORTAL_MESSAGE)
     return 0
+
+
+def cmd_upgrade(a, out=print, run=None) -> int:
+    from redberry_cli import upgrade  # the install script does the work, in the customer's cloud
+
+    return upgrade.cmd_upgrade(a, out=out, run=run)
 
 
 _EXTRACT_BACKENDS = (("ANTHROPIC_API_KEY", "Anthropic", []),
@@ -455,6 +465,12 @@ def parser() -> argparse.ArgumentParser:
     vc.add_argument("--no-env", action="store_true",
                     help="print the REDBERRY_* variables instead of setting them with the Vercel CLI")
     con.set_defaults(fn=cmd_connect)
+    up = sub.add_parser("upgrade", help="your installs' releases; with an id, upgrade that install to the latest")
+    up.add_argument("installation", nargs="?", help="the installation to upgrade (without it: list them)")
+    up.add_argument("--yes", action="store_true", help="upgrade without asking")
+    up.add_argument("--force", action="store_true", help="run the upgrade even when the install is up to date")
+    up.add_argument("--json", action="store_true", help="list the installations as JSON")
+    up.set_defaults(fn=cmd_upgrade)
     return p
 
 

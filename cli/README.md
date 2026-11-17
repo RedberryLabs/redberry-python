@@ -24,6 +24,7 @@ or `pipx install redberry-cli`. Python 3.11 or later.
 | `redberry connect --platform aws-lambda` | Wires a Node.js or Python Lambda function (below). |
 | `redberry connect --platform azure-functions` | Wires a Node.js (v4) or Python (v2) Azure function app (below). |
 | `redberry connect --platform vercel` | Wires a Next.js app on the Vercel AI SDK, and sets the project's `REDBERRY_*` variables (below). |
+| `redberry upgrade` | Your company's Redberry installs and whether each runs the latest release; `redberry upgrade <id>` upgrades one (below). |
 
 The API is `https://api.redberry.sbs`; `--api` or `REDBERRY_API_URL` selects another. `--json` prints a
 command's result for scripts.
@@ -98,6 +99,18 @@ A `redberry-extract` on PATH is used as it is. Otherwise `connect` installs it:
 - It is installed with uv into its own environment in `~/.redberry/extractor/<version>/` (`$REDBERRY_HOME`
   overrides `~/.redberry`), from Redberry's package index with a short-lived download token that is passed to uv
   in its environment only. Later runs reuse that install.
+
+## `upgrade`: take Redberry's latest release
+
+`redberry upgrade` lists your company's installs, the release each last reported, and whether a newer one is
+out. `redberry upgrade <id>` upgrades one: it fetches the cloud's install script from the Redberry portal and runs
+it on this machine with `--upgrade`, through the cloud's CLI as you are signed in to it (`gcloud`, `aws` or `az`;
+on AWS, signed in to the install's account). The script keeps every choice the install was made with, asks
+nothing and needs no install token, then reports the new release to Redberry. It is the same command the portal
+shows, which you can also paste into the cloud's own shell.
+
+It asks before it runs (`--yes` skips the question). An install that is already up to date is left alone unless
+you pass `--force`. A stopped or revoked install is not upgraded: install it again from the portal.
 
 ## License
 
