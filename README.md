@@ -94,6 +94,11 @@ trying every 5 minutes; as soon as the cause is fixed, records are sent again, w
 | `RB-SDK-DISC-003` | On Azure, the install could not be found | Check that the app has a managed identity and was chosen as an agent (run the install again and select it) |
 | `RB-SDK-DISC-004` | The agent is named, but not on Google Cloud, AWS or Azure, and no endpoint is set | Set `REDBERRY_INGEST_URL` |
 
+## Connecting an agent
+
+[`docs/connect-an-agent.md`](docs/connect-an-agent.md) walks through connecting an agent on each platform, step
+by step; it is written so that a coding agent can follow it. [`llms.txt`](llms.txt) indexes it for LLM tools.
+
 ## Command-line tool
 
 The `redberry` command (distribution `redberry-cli`, in [`cli/`](cli/README.md)) signs a machine in to Redberry
