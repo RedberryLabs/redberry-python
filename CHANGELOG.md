@@ -6,8 +6,10 @@
   `RB-SDK-INIT-001` (`MissingInstrumentationError`), `RB-SDK-INIT-002` (`ContentCaptureDisabledError`),
   `RB-SDK-AUTH-001` (ingest refused the agent's identity after the retry period), `RB-SDK-TOKEN-001` (no identity
   token or credentials on GCP, AWS or Azure; the message names the cloud) and `RB-SDK-DROP-001` (spans dropped,
-  with the running total). Both exceptions also carry the code as a `code` attribute. Behaviour is otherwise
+  with the running total), and `RB-SDK-DROP-002` (an export that raised; its batch is dropped and counted). Both exceptions also carry the code as a `code` attribute. Behaviour is otherwise
   unchanged; log filters that match the start of these messages need the code allowed for.
+- On Azure, an ingest refusal (401/403) now names the Azure fix (choose the app as an agent in the install, which
+  grants Redberry's Agent.Send role) instead of the Google Cloud one.
 
 ## 0.4.0
 

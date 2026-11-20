@@ -88,3 +88,24 @@ def test_ingest_refusal_has_its_code(monkeypatch, caplog, auth):
         retry._refused(403)
     [record] = _codes(caplog, "RB-SDK-AUTH-001")
     assert record.levelno == logging.ERROR and "(403)" in record.message
+
+
+def test_an_azure_refusal_gives_the_azure_fix(caplog):
+    retry = object.__new__(_emit.AuthRetryExporter)
+    retry._auth = object.__new__(_emit_azure.BearerAuth)
+    with caplog.at_level(logging.WARNING, logger="redberry.sdk"):
+        retry._refused(401)
+    [record] = _codes(caplog, "RB-SDK-AUTH-001")
+    assert "managed identity" in record.message and "Agent.Send" in record.message
+    assert "run.invoker" not in record.message
+
+
+def test_an_exporter_that_raises_has_its_code(caplog):
+    class Raising:
+        def export(self, spans):
+            raise RuntimeError("boom")
+    with caplog.at_level(logging.WARNING, logger="redberry.sdk"):
+        _emit.CountingExporter(Raising()).export([object(), object()])
+    [record] = _codes(caplog, "RB-SDK-DROP-002")
+    assert record.levelno == logging.WARNING and "boom" in record.message
+    assert _emit.dropped_spans() == 2

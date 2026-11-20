@@ -417,7 +417,8 @@ class CountingExporter(SpanExporter):
         try:
             result = self.inner.export(spans)
         except Exception as e:  # noqa: BLE001 (the agent must never see it)
-            _log_once("export-raised", logging.WARNING, "redberry_sdk: span export failed: %s", e)
+            _log_once("export-raised", logging.WARNING, "redberry_sdk: RB-SDK-DROP-002: span export failed: %s; the batch "
+                      "is dropped and counted (redberry_sdk.dropped_spans())", e)
             result = SpanExportResult.FAILURE
         if result is not SpanExportResult.SUCCESS:
             _count_dropped(len(spans))
@@ -513,6 +514,12 @@ class AuthRetryExporter(SpanExporter):
                       "redberry_sdk: RB-SDK-AUTH-001: ingest refused the agent's IAM role (%d): the installation grants "
                       "lambda:InvokeFunctionUrl to this account on Redberry's ingest function; check the "
                       "install. Spans are dropped until it is granted.", code)
+            return
+        if type(self._auth).__name__ == "BearerAuth":
+            _log_once(f"auth-refused-{code}", logging.ERROR,
+                      "redberry_sdk: RB-SDK-AUTH-001: ingest refused the agent's managed identity (%d): the "
+                      "installation gives Redberry's Agent.Send role to the identities chosen as agents; re-run the "
+                      "install and select this app. Spans are dropped until it is granted.", code)
             return
         who = _service_account() if self._auth is not None else "the agent's identity"
         _log_once(f"auth-refused-{code}", logging.ERROR,
