@@ -34,10 +34,14 @@ class MissingInstrumentationError(RuntimeError):
     """A supported library is installed without its instrumentation package (see
     ``instrumentors/_expected.py``): the agent would run unobserved."""
 
+    code = "RB-SDK-INIT-001"
+
 
 class ContentCaptureDisabledError(RuntimeError):
     """Content capture is off, and nothing said it should be: the evidence would hold no prompts or
     completions, and pricing could not score the agent."""
+
+    code = "RB-SDK-INIT-002"
 
 
 _CAPTURE_ENV = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
@@ -55,7 +59,7 @@ def _check_content_capture(config: Any, stacklevel: int = 3) -> None:
     why = "capture_content=False" if not config.capture_content else f"{_CAPTURE_ENV}={inherited!r} in the environment"
     if not config.allow_content_capture_off:
         raise ContentCaptureDisabledError(
-            f"content capture is off ({why}): the evidence and pricing both need the prompts and completions. "
+            f"{ContentCaptureDisabledError.code}: content capture is off ({why}): the evidence and pricing both need the prompts and completions. "
             "Remove the setting, or set allow_content_capture_off / REDBERRY_ALLOW_CONTENT_CAPTURE_OFF=1 to "
             "run metadata-only deliberately.")
     message = f"redberry_sdk: running WITHOUT content capture ({why}), as allowed: metadata only"
@@ -78,7 +82,7 @@ def prepare_instrumentation(*, capture_content: bool = True, allow_missing_instr
         detail = "; ".join(f"{e.library}: {e.detail} ({install_hint(e.extra)})" for e in missing)
         if not allow_missing_instrumentation:
             raise MissingInstrumentationError(
-                f"installed without working instrumentation, so they would not be observed: {detail}. "
+                f"{MissingInstrumentationError.code}: installed without working instrumentation, so they would not be observed: {detail}. "
                 "Install the extras, or set allow_missing_instrumentation / "
                 "REDBERRY_ALLOW_MISSING_INSTRUMENTATION=1 to run without them.")
         message = f"redberry_sdk: running WITHOUT instrumentation for {detail}"
@@ -115,7 +119,7 @@ def enable_instrumentation(*, allow_missing_instrumentation: bool = False) -> li
         detail = "; ".join(f"{e.library}: {e.detail}" for e in failed)
         if not allow_missing_instrumentation:
             raise MissingInstrumentationError(
-                f"installed with instrumentation that failed to start, so they would not be observed: {detail}. Check the "
+                f"{MissingInstrumentationError.code}: installed with instrumentation that failed to start, so they would not be observed: {detail}. Check the "
                 "installed OpenTelemetry versions against the extras' pins, or set allow_missing_instrumentation / "
                 "REDBERRY_ALLOW_MISSING_INSTRUMENTATION=1 to run without them.")
         message = f"redberry_sdk: running WITHOUT instrumentation for {detail}"
