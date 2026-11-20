@@ -165,7 +165,7 @@ class BearerAuth(requests.auth.AuthBase):
         except Exception as e:
             if not self._failed_logged:
                 self._failed_logged = True
-                _log.warning("redberry_sdk: no managed identity token for %s (%s); spans stay queued and "
+                _log.warning("redberry_sdk: RB-SDK-TOKEN-001: on Azure, no managed identity token for %s (%s); spans stay queued and "
                              "the export is retried", self.tokens.resource, e)
             raise TokenUnavailable(str(e)) from e
         self._failed_logged = False

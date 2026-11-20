@@ -335,7 +335,7 @@ class IdTokenAuth(requests.auth.AuthBase):
             if not token:
                 if not self._failed_logged:
                     self._failed_logged = True
-                    _log.warning("redberry_sdk: no ID token from the metadata server for %s; spans stay "
+                    _log.warning("redberry_sdk: RB-SDK-TOKEN-001: on GCP, no ID token from the metadata server for %s; spans stay "
                                  "queued and the export is retried", self.audience)
                 raise TokenUnavailable(f"no ID token for {self.audience}")
             expiry = _jwt_expiry(token)
@@ -404,7 +404,7 @@ def _maybe_log_dropped(now: float | None = None) -> None:
             return
         _DROPPED_LOGGED, _DROPPED_LOGGED_AT = _DROPPED, now
         total = _DROPPED
-    _log.warning("redberry_sdk: %d span(s) dropped so far (redberry_sdk.dropped_spans())", total)
+    _log.warning("redberry_sdk: RB-SDK-DROP-001: %d span(s) dropped so far (redberry_sdk.dropped_spans())", total)
 
 
 class CountingExporter(SpanExporter):
@@ -510,13 +510,13 @@ class AuthRetryExporter(SpanExporter):
     def _refused(self, code: int) -> None:
         if type(self._auth).__name__ == "SigV4Auth":
             _log_once(f"auth-refused-{code}", logging.ERROR,
-                      "redberry_sdk: ingest refused the agent's IAM role (%d): the installation grants "
+                      "redberry_sdk: RB-SDK-AUTH-001: ingest refused the agent's IAM role (%d): the installation grants "
                       "lambda:InvokeFunctionUrl to this account on Redberry's ingest function; check the "
                       "install. Spans are dropped until it is granted.", code)
             return
         who = _service_account() if self._auth is not None else "the agent's identity"
         _log_once(f"auth-refused-{code}", logging.ERROR,
-                  "redberry_sdk: ingest refused the agent's identity (%d): grant roles/run.invoker on "
+                  "redberry_sdk: RB-SDK-AUTH-001: ingest refused the agent's identity (%d): grant roles/run.invoker on "
                   "%s to %s — `redberry` install script step 13. Spans are dropped until it is granted.",
                   code, INGEST_SERVICE, who)
 

@@ -239,7 +239,7 @@ class SigV4Auth(requests.auth.AuthBase):
         except Exception as e:
             if not self._failed_logged:
                 self._failed_logged = True
-                _log.warning("redberry_sdk: no AWS credentials to sign the export (%s); spans stay queued "
+                _log.warning("redberry_sdk: RB-SDK-TOKEN-001: on AWS, no AWS credentials to sign the export (%s); spans stay queued "
                              "and the export is retried", e)
             raise TokenUnavailable(str(e)) from e
         self._failed_logged = False

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Every remaining install failure the SDK reports now starts with a stable code, as discovery failures already do:
+  `RB-SDK-INIT-001` (`MissingInstrumentationError`), `RB-SDK-INIT-002` (`ContentCaptureDisabledError`),
+  `RB-SDK-AUTH-001` (ingest refused the agent's identity after the retry period), `RB-SDK-TOKEN-001` (no identity
+  token or credentials on GCP, AWS or Azure; the message names the cloud) and `RB-SDK-DROP-001` (spans dropped,
+  with the running total). Both exceptions also carry the code as a `code` attribute. Behaviour is otherwise
+  unchanged; log filters that match the start of these messages need the code allowed for.
+
 ## 0.4.0
 
 - **Licence.** From this release the package is licensed under the PolyForm Shield License 1.0.0, replacing the
